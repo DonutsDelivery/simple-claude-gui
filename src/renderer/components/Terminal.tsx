@@ -107,10 +107,16 @@ export function Terminal({ ptyId, isActive }: TerminalProps) {
     })
 
     // Handle PTY output
+    let firstData = true
     const cleanupData = window.electronAPI.onPtyData(ptyId, (data) => {
       terminal.write(data)
       // Auto-scroll to bottom on new data
       terminal.scrollToBottom()
+      // Resize on first data to ensure PTY has correct dimensions
+      if (firstData) {
+        firstData = false
+        handleResize()
+      }
     })
 
     // Handle PTY exit
@@ -132,8 +138,10 @@ export function Terminal({ ptyId, isActive }: TerminalProps) {
     const resizeObserver = new ResizeObserver(handleResize)
     resizeObserver.observe(containerRef.current)
 
-    // Initial resize
+    // Initial resize - multiple attempts to ensure correct sizing
+    setTimeout(handleResize, 0)
     setTimeout(handleResize, 100)
+    setTimeout(handleResize, 500)
 
     return () => {
       cleanupData()
