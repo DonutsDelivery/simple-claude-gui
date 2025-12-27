@@ -110,7 +110,12 @@ export class PtyManager {
   resize(id: string, cols: number, rows: number): void {
     const proc = this.processes.get(id)
     if (proc) {
-      proc.pty.resize(cols, rows)
+      try {
+        proc.pty.resize(cols, rows)
+      } catch (e) {
+        // PTY may have already exited, ignore resize errors
+        console.log('PTY resize ignored (may have exited):', id)
+      }
     }
   }
 

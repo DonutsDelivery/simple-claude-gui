@@ -101,8 +101,8 @@ export function Terminal({ ptyId, isActive, theme, onFocus }: TerminalProps) {
         handleCopy(terminal)
         return false
       }
-      // Ctrl+Shift+V for paste
-      if (event.ctrlKey && event.shiftKey && event.key === 'V') {
+      // Ctrl+Shift+V or Ctrl+V for paste
+      if (event.ctrlKey && (event.key === 'V' || event.key === 'v')) {
         handlePaste(terminal, ptyId)
         return false
       }
@@ -120,12 +120,23 @@ export function Terminal({ ptyId, isActive, theme, onFocus }: TerminalProps) {
       return true
     })
 
-    // Right-click context menu copy
+    // Right-click: copy if selection, else paste
     containerRef.current.addEventListener('contextmenu', (e) => {
       e.preventDefault()
       const selection = terminal.getSelection()
       if (selection) {
         navigator.clipboard.writeText(selection)
+      } else {
+        // No selection - paste
+        handlePaste(terminal, ptyId)
+      }
+    })
+
+    // Middle-click paste (Linux style)
+    containerRef.current.addEventListener('auxclick', (e) => {
+      if (e.button === 1) {  // Middle button
+        e.preventDefault()
+        handlePaste(terminal, ptyId)
       }
     })
 
