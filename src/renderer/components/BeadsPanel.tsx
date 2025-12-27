@@ -149,7 +149,8 @@ export function BeadsPanel({ projectPath, isExpanded, onToggle }: BeadsPanelProp
     return 'priority-low'
   }
 
-  const projectName = projectPath ? projectPath.split('/').pop() : null
+  // Split on both / and \ for cross-platform support
+  const projectName = projectPath ? projectPath.split(/[/\\]/).pop() : null
 
   return (
     <div className="beads-panel">

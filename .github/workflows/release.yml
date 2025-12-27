@@ -88,8 +88,41 @@ jobs:
             dist-build/*.dmg
             dist-build/*.zip
 
+  build-windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build app
+        run: npm run build
+
+      - name: Package for Windows
+        run: npm run package
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-builds
+          path: |
+            dist-build/*.exe
+
   release:
-    needs: [build-linux, build-macos]
+    needs: [build-linux, build-macos, build-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -105,6 +138,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: macos-builds
+          path: dist-build
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-builds
           path: dist-build
 
       - name: Get version
@@ -132,8 +171,13 @@ jobs:
             dist-build/*.rpm
             dist-build/*.dmg
             dist-build/*.zip
+            dist-build/*.exe
           body: |
             ## Installation
+
+            ### Windows
+            - **Installer**: Download `Claude-Terminal-Setup-*.exe` and run it
+            - **Portable**: Download `Claude-Terminal-Portable-*.exe` (no installation required)
 
             ### macOS
             Download the `.dmg` file, open it, and drag Claude Terminal to your Applications folder.

@@ -8,6 +8,7 @@ const execAsync = promisify(exec)
 import { PtyManager } from './pty-manager'
 import { SessionStore } from './session-store'
 import { discoverSessions } from './session-discovery'
+import { isWindows, getDefaultShell, getEnhancedPath } from './platform'
 
 let mainWindow: BrowserWindow | null = null
 const ptyManager = new PtyManager()
@@ -195,18 +196,10 @@ ipcMain.handle('executable:run', (_, { executable, cwd }: { executable: string; 
 // Beads integration
 let beadsAvailable: boolean | null = null
 
-// Extended PATH to find tools installed in common locations
-const extendedPath = [
-  process.env.PATH,
-  '/usr/local/bin',
-  '/usr/bin',
-  `${process.env.HOME || ''}/.local/bin`,
-  `${process.env.HOME || ''}/.cargo/bin`
-].join(':')
-
+// Use platform-aware shell and PATH
 const beadsExecOptions = {
-  shell: '/bin/bash',
-  env: { ...process.env, PATH: extendedPath }
+  shell: isWindows ? true : '/bin/bash',  // true uses default shell on Windows
+  env: { ...process.env, PATH: getEnhancedPath() }
 }
 
 async function checkBeadsInstalled(): Promise<boolean> {

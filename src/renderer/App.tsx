@@ -148,7 +148,8 @@ function App() {
   const handleAddProject = useCallback(async () => {
     const path = await window.electronAPI.addProject()
     if (path) {
-      const name = path.split('/').pop() || path
+      // Split on both / and \ for cross-platform support
+      const name = path.split(/[/\\]/).pop() || path
       addProject({ path, name })
     }
   }, [addProject])
@@ -163,7 +164,8 @@ function App() {
       }
     }
 
-    const projectName = projectPath.split('/').pop() || projectPath
+    // Split on both / and \ for cross-platform support
+    const projectName = projectPath.split(/[/\\]/).pop() || projectPath
     const title = slug ? `${projectName} - ${slug}` : `${projectName} - New`
 
     try {

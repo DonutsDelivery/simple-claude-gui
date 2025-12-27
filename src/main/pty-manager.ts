@@ -1,6 +1,5 @@
 import * as pty from 'node-pty'
-import * as os from 'os'
-import * as path from 'path'
+import { isWindows, getEnhancedPath } from './platform'
 
 interface ClaudeProcess {
   id: string
@@ -11,20 +10,7 @@ interface ClaudeProcess {
 
 function getEnhancedEnv(): { [key: string]: string } {
   const env = { ...process.env } as { [key: string]: string }
-  const home = os.homedir()
-
-  // Add common paths where claude might be installed
-  const additionalPaths = [
-    path.join(home, '.nvm/versions/node/v20.18.1/bin'),
-    path.join(home, '.nvm/versions/node/v22.11.0/bin'),
-    path.join(home, '.local/bin'),
-    path.join(home, '.npm-global/bin'),
-    '/usr/local/bin',
-  ]
-
-  const currentPath = env.PATH || ''
-  env.PATH = [...additionalPaths, currentPath].join(':')
-
+  env.PATH = getEnhancedPath()
   return env
 }
 
@@ -96,8 +82,12 @@ export class PtyManager {
     const proc = this.processes.get(id)
     if (proc) {
       try {
-        // Force kill with SIGKILL to ensure process dies
-        proc.pty.kill('SIGKILL')
+        // Windows doesn't support SIGKILL, use default signal
+        if (isWindows) {
+          proc.pty.kill()
+        } else {
+          proc.pty.kill('SIGKILL')
+        }
       } catch (e) {
         // Process may already be dead
       }

@@ -15,17 +15,19 @@ const CONVERSATION_TYPES = ['user', 'assistant']
 
 function encodeProjectPath(projectPath: string): string {
   // Claude encodes paths by:
-  // 1. Removing trailing slashes
-  // 2. Replacing / with -
+  // 1. Removing trailing slashes/backslashes
+  // 2. Replacing / and \ with -
   // 3. Replacing _ with -
   // 4. Replacing spaces with -
+  // 5. Replacing : with - (Windows drive letters)
   // /home/user/my_project/ becomes -home-user-my-project
-  // /home/user/My Project/ becomes -home-user-My-Project
+  // C:\Users\bob\project becomes -C-Users-bob-project
   return projectPath
-    .replace(/\/+$/, '')  // Remove trailing slashes
-    .replace(/\//g, '-')   // Replace / with -
-    .replace(/_/g, '-')    // Replace _ with -
-    .replace(/ /g, '-')    // Replace spaces with -
+    .replace(/[/\\]+$/, '')  // Remove trailing slashes/backslashes
+    .replace(/[/\\]/g, '-')  // Replace / and \ with -
+    .replace(/:/g, '-')      // Replace : with - (Windows drive letters)
+    .replace(/_/g, '-')      // Replace _ with -
+    .replace(/ /g, '-')      // Replace spaces with -
 }
 
 export function discoverSessions(projectPath: string): ClaudeSession[] {
