@@ -5,6 +5,11 @@ directories:
   output: dist-build
 files:
   - dist/**/*
+
+publish:
+  provider: github
+  owner: DonutsDelivery
+  repo: simple-claude-gui
 linux:
   target:
     - AppImage
