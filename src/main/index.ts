@@ -259,8 +259,8 @@ function checkGitBashInstalled(): boolean {
   const gitBashPaths = [
     'C:\\Program Files\\Git\\bin\\bash.exe',
     'C:\\Program Files (x86)\\Git\\bin\\bash.exe',
-    path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Git', 'bin', 'bash.exe'),
-    path.join(process.env.PROGRAMFILES || '', 'Git', 'bin', 'bash.exe'),
+    join(process.env.LOCALAPPDATA || '', 'Programs', 'Git', 'bin', 'bash.exe'),
+    join(process.env.PROGRAMFILES || '', 'Git', 'bin', 'bash.exe'),
   ]
 
   for (const bashPath of gitBashPaths) {
