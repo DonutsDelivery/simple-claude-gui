@@ -473,7 +473,16 @@ function App() {
           {updateStatus.status === 'available' && (
             <button
               className="update-btn"
-              onClick={() => window.electronAPI.downloadUpdate()}
+              onClick={() => {
+                setUpdateStatus({ status: 'downloading', version: updateStatus.version, progress: 0 })
+                window.electronAPI.downloadUpdate().then(result => {
+                  if (!result.success) {
+                    setUpdateStatus({ status: 'error', error: result.error })
+                  }
+                }).catch(e => {
+                  setUpdateStatus({ status: 'error', error: String(e) })
+                })
+              }}
               title={`Update to v${updateStatus.version}`}
             >
               Update available
@@ -492,6 +501,11 @@ function App() {
             >
               Restart to update
             </button>
+          )}
+          {updateStatus.status === 'error' && (
+            <span className="update-error" title={updateStatus.error}>
+              Update failed
+            </span>
           )}
         </div>
       )}

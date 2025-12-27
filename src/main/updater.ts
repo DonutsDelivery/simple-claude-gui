@@ -61,9 +61,12 @@ ipcMain.handle('updater:check', async () => {
 
 ipcMain.handle('updater:download', async () => {
   try {
+    console.log('Starting update download...')
     await autoUpdater.downloadUpdate()
+    console.log('Download complete')
     return { success: true }
   } catch (e: any) {
+    console.error('Download failed:', e)
     return { success: false, error: e.message }
   }
 })

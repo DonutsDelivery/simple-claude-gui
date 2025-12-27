@@ -1885,3 +1885,9 @@ html, body, #root {
   color: var(--accent);
   font-family: var(--font-mono);
 }
+
+.update-error {
+  color: #f44;
+  font-family: var(--font-mono);
+  cursor: help;
+}
