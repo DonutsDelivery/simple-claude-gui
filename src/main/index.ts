@@ -25,23 +25,26 @@ function migrateUserData() {
   const newUserData = app.getPath('userData')
   const oldUserData = join(dirname(newUserData), 'claude-terminal')
 
-  // Check if old data exists and new data doesn't have the main config
-  if (existsSync(oldUserData) && !existsSync(join(newUserData, 'workspace.json'))) {
-    console.log('Migrating user data from', oldUserData, 'to', newUserData)
+  // Config is stored in a subdirectory
+  const oldConfigDir = join(oldUserData, 'config')
+  const newConfigDir = join(newUserData, 'config')
+
+  // Check if old config exists and new config doesn't have workspace.json
+  if (existsSync(oldConfigDir) && !existsSync(join(newConfigDir, 'workspace.json'))) {
+    console.log('Migrating user data from', oldConfigDir, 'to', newConfigDir)
 
     try {
-      // Ensure new directory exists
-      if (!existsSync(newUserData)) {
-        mkdirSync(newUserData, { recursive: true })
+      // Ensure new config directory exists
+      if (!existsSync(newConfigDir)) {
+        mkdirSync(newConfigDir, { recursive: true })
       }
 
-      // Copy all files from old to new
-      const files = readdirSync(oldUserData)
+      // Copy all files from old config to new config
+      const files = readdirSync(oldConfigDir)
       for (const file of files) {
-        const oldPath = join(oldUserData, file)
-        const newPath = join(newUserData, file)
+        const oldPath = join(oldConfigDir, file)
+        const newPath = join(newConfigDir, file)
 
-        // Only copy files, not directories (to avoid copying deps folder)
         if (statSync(oldPath).isFile()) {
           console.log('Migrating:', file)
           copyFileSync(oldPath, newPath)
