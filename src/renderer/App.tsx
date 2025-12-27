@@ -41,6 +41,12 @@ declare global {
       killPty: (id: string) => void
       onPtyData: (id: string, callback: (data: string) => void) => () => void
       onPtyExit: (id: string, callback: (code: number) => void) => () => void
+      // Updater
+      getVersion: () => Promise<string>
+      checkForUpdate: () => Promise<{ success: boolean; version?: string; error?: string }>
+      downloadUpdate: () => Promise<{ success: boolean; error?: string }>
+      installUpdate: () => void
+      onUpdaterStatus: (callback: (data: { status: string; version?: string; progress?: number; error?: string }) => void) => () => void
     }
   }
 }
@@ -71,6 +77,13 @@ function App() {
   const [installing, setInstalling] = useState<'node' | 'claude' | null>(null)
   const [installError, setInstallError] = useState<string | null>(null)
   const [installMessage, setInstallMessage] = useState<string | null>(null)
+  const [appVersion, setAppVersion] = useState<string>('')
+  const [updateStatus, setUpdateStatus] = useState<{
+    status: 'idle' | 'checking' | 'available' | 'downloading' | 'downloaded' | 'error'
+    version?: string
+    progress?: number
+    error?: string
+  }>({ status: 'idle' })
   const initRef = useRef(false)
 
   // Load workspace on mount and restore tabs
@@ -143,6 +156,21 @@ function App() {
       setLoading(false)
     }
     loadWorkspace()
+
+    // Load app version
+    window.electronAPI.getVersion().then(setAppVersion).catch(console.error)
+
+    // Subscribe to updater events
+    const unsubscribe = window.electronAPI.onUpdaterStatus((data) => {
+      setUpdateStatus({
+        status: data.status as any,
+        version: data.version,
+        progress: data.progress,
+        error: data.error
+      })
+    })
+
+    return () => unsubscribe()
   }, [])
 
   // Save workspace when it changes
@@ -395,6 +423,36 @@ function App() {
         onClose={() => setMakeProjectOpen(false)}
         onProjectCreated={handleProjectCreated}
       />
+
+      {/* Version indicator */}
+      {appVersion && (
+        <div className="version-indicator">
+          <span className="version-text">v{appVersion}</span>
+          {updateStatus.status === 'available' && (
+            <button
+              className="update-btn"
+              onClick={() => window.electronAPI.downloadUpdate()}
+              title={`Update to v${updateStatus.version}`}
+            >
+              Update available
+            </button>
+          )}
+          {updateStatus.status === 'downloading' && (
+            <span className="update-progress">
+              Downloading... {Math.round(updateStatus.progress || 0)}%
+            </span>
+          )}
+          {updateStatus.status === 'downloaded' && (
+            <button
+              className="update-btn ready"
+              onClick={() => window.electronAPI.installUpdate()}
+              title="Restart and install update"
+            >
+              Restart to update
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }

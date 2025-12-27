@@ -52,6 +52,13 @@ export interface ElectronAPI {
   killPty: (id: string) => void
   onPtyData: (id: string, callback: (data: string) => void) => () => void
   onPtyExit: (id: string, callback: (code: number) => void) => () => void
+
+  // Updater
+  getVersion: () => Promise<string>
+  checkForUpdate: () => Promise<{ success: boolean; version?: string; error?: string }>
+  downloadUpdate: () => Promise<{ success: boolean; error?: string }>
+  installUpdate: () => void
+  onUpdaterStatus: (callback: (data: { status: string; version?: string; progress?: number; error?: string }) => void) => () => void
 }
 
 const api: ElectronAPI = {
@@ -114,6 +121,17 @@ const api: ElectronAPI = {
     const handler = (_: any, code: number) => callback(code)
     ipcRenderer.on(`pty:exit:${id}`, handler)
     return () => ipcRenderer.removeListener(`pty:exit:${id}`, handler)
+  },
+
+  // Updater
+  getVersion: () => ipcRenderer.invoke('updater:getVersion'),
+  checkForUpdate: () => ipcRenderer.invoke('updater:check'),
+  downloadUpdate: () => ipcRenderer.invoke('updater:download'),
+  installUpdate: () => ipcRenderer.invoke('updater:install'),
+  onUpdaterStatus: (callback) => {
+    const handler = (_: any, data: { status: string; version?: string; progress?: number; error?: string }) => callback(data)
+    ipcRenderer.on('updater:status', handler)
+    return () => ipcRenderer.removeListener('updater:status', handler)
   }
 }
 

@@ -19,6 +19,7 @@ import {
   installClaudeWithPortableNpm,
   installBeadsWithPortablePip
 } from './portable-deps'
+import { initUpdater } from './updater'
 
 let mainWindow: BrowserWindow | null = null
 const ptyManager = new PtyManager()
@@ -72,6 +73,11 @@ app.whenReady().then(() => {
   console.log('Portable bin directories:', portableDirs)
 
   createWindow()
+
+  // Initialize auto-updater
+  if (mainWindow) {
+    initUpdater(mainWindow)
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
