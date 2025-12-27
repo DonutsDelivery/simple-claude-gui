@@ -1,0 +1,107 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.1.2)'
+        required: true
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install RPM tools
+        run: sudo apt-get update && sudo apt-get install -y rpm
+
+      - name: Build app
+        run: npm run build
+
+      - name: Package for Linux
+        run: npm run package
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-builds
+          path: |
+            dist-build/*.AppImage
+            dist-build/*.deb
+            dist-build/*.rpm
+
+  release:
+    needs: build-linux
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-builds
+          path: dist-build
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Claude Terminal ${{ steps.version.outputs.version }}
+          draft: false
+          prerelease: false
+          files: |
+            dist-build/*.AppImage
+            dist-build/*.deb
+            dist-build/*.rpm
+          body: |
+            ## Installation
+
+            ### AppImage (Any Linux distro)
+            ```bash
+            chmod +x Claude-Terminal-*.AppImage
+            ./Claude-Terminal-*.AppImage
+            ```
+
+            ### Debian/Ubuntu
+            ```bash
+            sudo dpkg -i Claude-Terminal-*.deb
+            ```
+
+            ### Fedora/RHEL
+            ```bash
+            sudo rpm -i Claude-Terminal-*.rpm
+            ```
+
+            ### Arch Linux (AUR)
+            ```bash
+            yay -S simple-claude-gui
+            ```
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

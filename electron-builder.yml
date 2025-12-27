@@ -9,5 +9,21 @@ linux:
   target:
     - AppImage
     - deb
+    - rpm
   category: Development
   icon: resources/icon.png
+  synopsis: Multi-session Claude Code terminal manager
+  description: Desktop app for managing multiple Claude Code sessions across projects
+
+appImage:
+  artifactName: ${productName}-${version}.${ext}
+
+deb:
+  artifactName: ${productName}-${version}.${ext}
+  depends:
+    - libnotify4
+    - libxtst6
+    - libnss3
+
+rpm:
+  artifactName: ${productName}-${version}.${ext}
