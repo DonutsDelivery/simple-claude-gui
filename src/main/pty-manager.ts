@@ -20,6 +20,23 @@ function getEnhancedEnv(): { [key: string]: string } {
     // Windows uses 'Path' but Node sometimes uses 'PATH' - set both to be safe
     env.PATH = enhancedPath
     env.Path = enhancedPath
+
+    // Claude Code on Windows requires git-bash - try to find and set it
+    if (!env.CLAUDE_CODE_GIT_BASH_PATH) {
+      const gitBashPaths = [
+        'C:\\Program Files\\Git\\bin\\bash.exe',
+        'C:\\Program Files (x86)\\Git\\bin\\bash.exe',
+        path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Git', 'bin', 'bash.exe'),
+        path.join(process.env.PROGRAMFILES || '', 'Git', 'bin', 'bash.exe'),
+      ]
+      for (const bashPath of gitBashPaths) {
+        if (fs.existsSync(bashPath)) {
+          env.CLAUDE_CODE_GIT_BASH_PATH = bashPath
+          console.log('Found git-bash at:', bashPath)
+          break
+        }
+      }
+    }
   } else {
     env.PATH = enhancedPath
   }
