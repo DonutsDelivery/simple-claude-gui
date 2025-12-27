@@ -1,6 +1,6 @@
 {
   "name": "claude-terminal",
-  "version": "1.1.5",
+  "version": "1.1.6",
   "description": "Multi-session Claude Code terminal manager",
   "author": {
     "name": "DonutsDelivery",
