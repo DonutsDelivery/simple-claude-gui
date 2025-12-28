@@ -588,6 +588,7 @@ ipcMain.handle('clipboard:readImage', async () => {
     const { clipboard } = require('electron')
     const formats = clipboard.availableFormats()
     console.log('[Clipboard] Available formats:', formats)
+    console.log('[Clipboard] isWindows:', isWindows)
 
     // Check for text/uri-list (Linux file copy)
     if (formats.includes('text/uri-list')) {
@@ -636,7 +637,7 @@ ipcMain.handle('clipboard:readImage', async () => {
           return { success: true, hasImage: true, path: srcMatch[1], isUrl: true }
         }
       }
-      return { success: false, hasImage: false }
+      return { success: false, hasImage: false, formats, isWindows }
     }
 
     // Save to temp file
