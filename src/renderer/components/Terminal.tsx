@@ -6,11 +6,24 @@ import { Theme } from '../themes'
 
 // Custom paste handler for xterm - supports text, file paths, and images
 async function handlePaste(term: XTerm, ptyId: string) {
+  // Check if at bottom before paste
+  const buffer = term.buffer.active
+  const wasAtBottom = buffer.viewportY >= buffer.baseY
+  const savedY = buffer.viewportY
+
   try {
     // First check if clipboard has an image or file (using Electron's native clipboard)
     const imageResult = await window.electronAPI.readClipboardImage()
     if (imageResult.success && imageResult.hasImage && imageResult.path) {
       window.electronAPI.writePty(ptyId, imageResult.path)
+      // Stay at bottom, or preserve user's scroll position
+      requestAnimationFrame(() => {
+        if (wasAtBottom) {
+          term.scrollToBottom()
+        } else {
+          term.scrollToLine(savedY)
+        }
+      })
       return
     }
 
@@ -27,6 +40,14 @@ async function handlePaste(term: XTerm, ptyId: string) {
           .join(' ')
       }
       window.electronAPI.writePty(ptyId, cleanText || text)
+      // Stay at bottom, or preserve user's scroll position
+      requestAnimationFrame(() => {
+        if (wasAtBottom) {
+          term.scrollToBottom()
+        } else {
+          term.scrollToLine(savedY)
+        }
+      })
     }
   } catch (e) {
     console.error('Paste failed:', e)
@@ -152,19 +173,19 @@ export function Terminal({ ptyId, isActive, theme, onFocus }: TerminalProps) {
       return true
     })
 
-    // Right-click: copy if selection, else paste
+    // Right-click: copy if selection, else paste (scroll is preserved in handlePaste)
     containerRef.current.addEventListener('contextmenu', (e) => {
       e.preventDefault()
       const selection = terminal.getSelection()
       if (selection) {
         navigator.clipboard.writeText(selection)
       } else {
-        // No selection - paste
+        // No selection - paste (handlePaste preserves scroll)
         handlePaste(terminal, ptyId)
       }
     })
 
-    // Middle-click paste (Linux style)
+    // Middle-click paste (Linux style) - handlePaste preserves scroll
     containerRef.current.addEventListener('auxclick', (e) => {
       if (e.button === 1) {  // Middle button
         e.preventDefault()
@@ -172,7 +193,7 @@ export function Terminal({ ptyId, isActive, theme, onFocus }: TerminalProps) {
       }
     })
 
-    // Prevent scroll jump on click - save and restore position
+    // Prevent scroll jump on click - stay at bottom or preserve position
     containerRef.current.addEventListener('mousedown', (e) => {
       // Save scroll position before click processing
       const buffer = terminal.buffer.active
@@ -181,27 +202,30 @@ export function Terminal({ ptyId, isActive, theme, onFocus }: TerminalProps) {
 
       // Restore scroll position after a brief delay (after xterm processes the click)
       requestAnimationFrame(() => {
-        const newBuffer = terminal.buffer.active
-        // Only restore if scroll position changed unexpectedly (not from wheel scroll)
-        if (!wasAtBottom && newBuffer.viewportY !== savedViewportY) {
+        if (wasAtBottom) {
+          terminal.scrollToBottom()
+        } else if (terminal.buffer.active.viewportY !== savedViewportY) {
           terminal.scrollToLine(savedViewportY)
         }
       })
     })
 
 
-    // Handle PTY output
+    // Handle PTY output - stay at bottom unless user scrolled up
     let firstData = true
     const cleanupData = window.electronAPI.onPtyData(ptyId, (data) => {
-      // Check if already at bottom before writing (to preserve scroll position if user scrolled up)
+      // Check if at bottom before writing
       const buffer = terminal.buffer.active
-      const atBottom = buffer.viewportY >= buffer.baseY
+      const wasAtBottom = buffer.viewportY >= buffer.baseY
+      const savedY = buffer.viewportY
 
       terminal.write(data)
 
-      // Only auto-scroll if we were already at the bottom
-      if (atBottom) {
+      // If was at bottom, stay at bottom. If user scrolled up, preserve position
+      if (wasAtBottom) {
         terminal.scrollToBottom()
+      } else {
+        terminal.scrollToLine(savedY)
       }
 
       // Resize on first data to ensure PTY has correct dimensions
@@ -216,20 +240,34 @@ export function Terminal({ ptyId, isActive, theme, onFocus }: TerminalProps) {
       terminal.write(`\r\n\x1b[90m[Process exited with code ${code}]\x1b[0m\r\n`)
     })
 
-    // Handle resize - scroll to bottom to avoid jump issues
+    // Handle resize - stay at bottom unless user scrolled up
     const handleResize = () => {
       if (!fitAddonRef.current || !containerRef.current || !terminalRef.current) return
 
       const rect = containerRef.current.getBoundingClientRect()
       // Only fit if container is visible and has reasonable dimensions
       if (rect.width > 50 && rect.height > 50) {
+        // Check if at bottom before resize
+        const buffer = terminalRef.current.buffer.active
+        const wasAtBottom = buffer.viewportY >= buffer.baseY
+        const savedY = buffer.viewportY
+
         fitAddonRef.current.fit()
         const dims = fitAddonRef.current.proposeDimensions()
         if (dims && dims.cols > 0 && dims.rows > 0) {
           window.electronAPI.resizePty(ptyId, dims.cols, dims.rows)
         }
-        // Always scroll to bottom on resize to avoid confusing jumps
-        terminalRef.current.scrollToBottom()
+
+        // Stay at bottom, or preserve user's scroll position
+        requestAnimationFrame(() => {
+          if (terminalRef.current) {
+            if (wasAtBottom) {
+              terminalRef.current.scrollToBottom()
+            } else {
+              terminalRef.current.scrollToLine(savedY)
+            }
+          }
+        })
       }
     }
 
@@ -250,9 +288,14 @@ export function Terminal({ ptyId, isActive, theme, onFocus }: TerminalProps) {
     }
   }, [ptyId])
 
-  // Refit when tab becomes active
+  // Refit when tab becomes active - stay at bottom unless user scrolled up
   useEffect(() => {
     if (isActive && fitAddonRef.current && containerRef.current && terminalRef.current) {
+      // Check if at bottom before any fitting
+      const buffer = terminalRef.current.buffer.active
+      const wasAtBottom = buffer.viewportY >= buffer.baseY
+      const savedY = buffer.viewportY
+
       const doFit = () => {
         if (!fitAddonRef.current || !containerRef.current || !terminalRef.current) return
 
@@ -263,7 +306,12 @@ export function Terminal({ ptyId, isActive, theme, onFocus }: TerminalProps) {
           if (dims && dims.cols > 0 && dims.rows > 0) {
             window.electronAPI.resizePty(ptyId, dims.cols, dims.rows)
           }
-          terminalRef.current.scrollToBottom()
+          // Stay at bottom, or preserve user's scroll position
+          if (wasAtBottom) {
+            terminalRef.current.scrollToBottom()
+          } else {
+            terminalRef.current.scrollToLine(savedY)
+          }
         }
         terminalRef.current?.focus()
       }
@@ -309,6 +357,11 @@ export function Terminal({ ptyId, isActive, theme, onFocus }: TerminalProps) {
     e.preventDefault()
     e.stopPropagation()
 
+    // Check if at bottom before drop
+    const buffer = terminalRef.current?.buffer.active
+    const wasAtBottom = buffer ? buffer.viewportY >= buffer.baseY : true
+    const savedY = buffer?.viewportY ?? 0
+
     const paths: string[] = []
 
     // Try Files array first (KDE Dolphin uses this)
@@ -341,6 +394,14 @@ export function Terminal({ ptyId, isActive, theme, onFocus }: TerminalProps) {
 
     if (paths.length > 0) {
       window.electronAPI.writePty(ptyId, paths.join(' '))
+      // Stay at bottom, or preserve user's scroll position
+      requestAnimationFrame(() => {
+        if (wasAtBottom) {
+          terminalRef.current?.scrollToBottom()
+        } else {
+          terminalRef.current?.scrollToLine(savedY)
+        }
+      })
     }
   }
 
