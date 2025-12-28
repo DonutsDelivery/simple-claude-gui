@@ -66,6 +66,12 @@ export interface ElectronAPI {
 
   // File utilities
   getPathForFile: (file: File) => string
+
+  // Window controls
+  windowMinimize: () => void
+  windowMaximize: () => void
+  windowClose: () => void
+  windowIsMaximized: () => Promise<boolean>
 }
 
 const api: ElectronAPI = {
@@ -146,7 +152,13 @@ const api: ElectronAPI = {
   readClipboardImage: () => ipcRenderer.invoke('clipboard:readImage'),
 
   // File utilities
-  getPathForFile: (file: File) => webUtils.getPathForFile(file)
+  getPathForFile: (file: File) => webUtils.getPathForFile(file),
+
+  // Window controls
+  windowMinimize: () => ipcRenderer.invoke('window:minimize'),
+  windowMaximize: () => ipcRenderer.invoke('window:maximize'),
+  windowClose: () => ipcRenderer.invoke('window:close'),
+  windowIsMaximized: () => ipcRenderer.invoke('window:isMaximized')
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)

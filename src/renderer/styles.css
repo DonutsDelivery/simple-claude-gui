@@ -88,13 +88,84 @@ html, body, #root {
 
 .app {
   display: flex;
+  flex-direction: column;
   height: 100%;
   animation: fadeIn 0.4s ease;
+}
+
+.app-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
 }
 
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+/* ============================================
+   Title Bar
+   ============================================ */
+
+.title-bar {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  background: var(--bg-base);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.title-bar-drag {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding-left: var(--space-md);
+  -webkit-app-region: drag;
+}
+
+.title-bar-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+}
+
+.title-bar-controls {
+  display: flex;
+  height: 100%;
+  -webkit-app-region: no-drag;
+}
+
+.title-bar-btn {
+  width: 46px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.title-bar-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.title-bar-btn.close:hover {
+  background: #c42b1c;
+  color: white;
+}
+
+.title-bar-btn svg {
+  width: 12px;
+  height: 12px;
 }
 
 /* ============================================

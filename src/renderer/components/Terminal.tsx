@@ -4,6 +4,20 @@ import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { Theme } from '../themes'
 
+// Debug flag - set to true to log scroll events
+const DEBUG_SCROLL = true
+
+// Track if scroll was user-initiated
+let userScrolling = false
+let lastScrollSource = 'unknown'
+
+function debugScroll(term: XTerm, source: string, details?: string) {
+  if (!DEBUG_SCROLL) return
+  const buffer = term.buffer.active
+  const atBottom = buffer.viewportY >= buffer.baseY
+  console.log(`[SCROLL] ${source}${details ? ` - ${details}` : ''} | viewportY=${buffer.viewportY} baseY=${buffer.baseY} atBottom=${atBottom} userScrolling=${userScrolling}`)
+}
+
 // Custom paste handler for xterm - supports text, file paths, and images
 async function handlePaste(term: XTerm, ptyId: string) {
   // Check if at bottom before paste
@@ -18,6 +32,7 @@ async function handlePaste(term: XTerm, ptyId: string) {
       window.electronAPI.writePty(ptyId, imageResult.path)
       // Stay at bottom, or preserve user's scroll position
       requestAnimationFrame(() => {
+        lastScrollSource = 'paste-image'
         if (wasAtBottom) {
           term.scrollToBottom()
         } else {
@@ -42,6 +57,7 @@ async function handlePaste(term: XTerm, ptyId: string) {
       window.electronAPI.writePty(ptyId, cleanText || text)
       // Stay at bottom, or preserve user's scroll position
       requestAnimationFrame(() => {
+        lastScrollSource = 'paste-text'
         if (wasAtBottom) {
           term.scrollToBottom()
         } else {
@@ -122,8 +138,28 @@ export function Terminal({ ptyId, isActive, theme, onFocus }: TerminalProps) {
     terminalRef.current = terminal
     fitAddonRef.current = fitAddon
 
+    // Debug: track all scroll events
+    if (DEBUG_SCROLL) {
+      terminal.onScroll((newPosition) => {
+        const buffer = terminal.buffer.active
+        console.log(`[SCROLL EVENT] position=${newPosition} viewportY=${buffer.viewportY} baseY=${buffer.baseY} source=${lastScrollSource} userScrolling=${userScrolling}`)
+        if (!userScrolling && lastScrollSource === 'unknown') {
+          console.trace('[SCROLL] Unexpected scroll - stack trace:')
+        }
+        lastScrollSource = 'unknown'
+      })
+    }
+
+    // Track user-initiated scrolling (mouse wheel)
+    containerRef.current.addEventListener('wheel', () => {
+      userScrolling = true
+      lastScrollSource = 'wheel'
+      setTimeout(() => { userScrolling = false }, 100)
+    }, { passive: true })
+
     // Defer fit to next frame when container has dimensions
     requestAnimationFrame(() => {
+      lastScrollSource = 'initial-fit'
       fitAddon.fit()
     })
 
@@ -202,6 +238,7 @@ export function Terminal({ ptyId, isActive, theme, onFocus }: TerminalProps) {
 
       // Restore scroll position after a brief delay (after xterm processes the click)
       requestAnimationFrame(() => {
+        lastScrollSource = 'mousedown-restore'
         if (wasAtBottom) {
           terminal.scrollToBottom()
         } else if (terminal.buffer.active.viewportY !== savedViewportY) {
@@ -219,9 +256,11 @@ export function Terminal({ ptyId, isActive, theme, onFocus }: TerminalProps) {
       const wasAtBottom = buffer.viewportY >= buffer.baseY
       const savedY = buffer.viewportY
 
+      lastScrollSource = 'pty-write'
       terminal.write(data)
 
       // If was at bottom, stay at bottom. If user scrolled up, preserve position
+      lastScrollSource = 'pty-output-restore'
       if (wasAtBottom) {
         terminal.scrollToBottom()
       } else {
@@ -252,6 +291,7 @@ export function Terminal({ ptyId, isActive, theme, onFocus }: TerminalProps) {
         const wasAtBottom = buffer.viewportY >= buffer.baseY
         const savedY = buffer.viewportY
 
+        lastScrollSource = 'resize-fit'
         fitAddonRef.current.fit()
         const dims = fitAddonRef.current.proposeDimensions()
         if (dims && dims.cols > 0 && dims.rows > 0) {
@@ -261,6 +301,7 @@ export function Terminal({ ptyId, isActive, theme, onFocus }: TerminalProps) {
         // Stay at bottom, or preserve user's scroll position
         requestAnimationFrame(() => {
           if (terminalRef.current) {
+            lastScrollSource = 'resize-restore'
             if (wasAtBottom) {
               terminalRef.current.scrollToBottom()
             } else {
@@ -301,12 +342,14 @@ export function Terminal({ ptyId, isActive, theme, onFocus }: TerminalProps) {
 
         const rect = containerRef.current.getBoundingClientRect()
         if (rect.width > 50 && rect.height > 50) {
+          lastScrollSource = 'tab-switch-fit'
           fitAddonRef.current.fit()
           const dims = fitAddonRef.current.proposeDimensions()
           if (dims && dims.cols > 0 && dims.rows > 0) {
             window.electronAPI.resizePty(ptyId, dims.cols, dims.rows)
           }
           // Stay at bottom, or preserve user's scroll position
+          lastScrollSource = 'tab-switch-restore'
           if (wasAtBottom) {
             terminalRef.current.scrollToBottom()
           } else {
@@ -396,6 +439,7 @@ export function Terminal({ ptyId, isActive, theme, onFocus }: TerminalProps) {
       window.electronAPI.writePty(ptyId, paths.join(' '))
       // Stay at bottom, or preserve user's scroll position
       requestAnimationFrame(() => {
+        lastScrollSource = 'file-drop-restore'
         if (wasAtBottom) {
           terminalRef.current?.scrollToBottom()
         } else {

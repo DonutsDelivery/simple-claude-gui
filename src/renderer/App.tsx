@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
+import { TitleBar } from './components/TitleBar'
 import { Sidebar } from './components/Sidebar'
 import { TerminalTabs } from './components/TerminalTabs'
 import { Terminal } from './components/Terminal'
@@ -50,6 +51,11 @@ declare global {
       onUpdaterStatus: (callback: (data: { status: string; version?: string; progress?: number; error?: string }) => void) => () => void
       // Clipboard
       readClipboardImage: () => Promise<{ success: boolean; hasImage?: boolean; path?: string; error?: string }>
+      // Window controls
+      windowMinimize: () => void
+      windowMaximize: () => void
+      windowClose: () => void
+      windowIsMaximized: () => Promise<boolean>
     }
   }
 }
@@ -321,6 +327,8 @@ function App() {
 
   return (
     <div className="app">
+      <TitleBar />
+      <div className="app-content">
       <Sidebar
         projects={projects}
         openTabs={openTabs}
@@ -473,6 +481,7 @@ function App() {
         onClose={() => setMakeProjectOpen(false)}
         onProjectCreated={handleProjectCreated}
       />
+      </div>
 
       {/* Version indicator */}
       {appVersion && (

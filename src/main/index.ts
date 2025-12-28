@@ -35,6 +35,9 @@ function createWindow() {
     height: bounds?.height ?? 800,
     x: bounds?.x,
     y: bounds?.y,
+    frame: false,
+    titleBarStyle: 'hidden',
+    autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       nodeIntegration: false,
@@ -658,4 +661,25 @@ ipcMain.handle('clipboard:readImage', async () => {
   } catch (e: any) {
     return { success: false, error: e.message }
   }
+})
+
+// Window controls
+ipcMain.handle('window:minimize', () => {
+  mainWindow?.minimize()
+})
+
+ipcMain.handle('window:maximize', () => {
+  if (mainWindow?.isMaximized()) {
+    mainWindow.unmaximize()
+  } else {
+    mainWindow?.maximize()
+  }
+})
+
+ipcMain.handle('window:close', () => {
+  mainWindow?.close()
+})
+
+ipcMain.handle('window:isMaximized', () => {
+  return mainWindow?.isMaximized() ?? false
 })
