@@ -23,6 +23,21 @@ import {
 } from './portable-deps'
 import { initUpdater } from './updater'
 
+// Single instance lock - prevent multiple instances
+const gotTheLock = app.requestSingleInstanceLock()
+
+if (!gotTheLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    // Someone tried to run a second instance, focus our window
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.focus()
+    }
+  })
+}
+
 let mainWindow: BrowserWindow | null = null
 const ptyManager = new PtyManager()
 const sessionStore = new SessionStore()
