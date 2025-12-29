@@ -99,10 +99,9 @@ export class PtyManager {
       env: getEnhancedEnv()
     }
 
-    // Windows ConPTY options for better escape sequence handling
+    // Windows: try winpty instead of ConPTY for better escape sequence handling
     if (isWindows) {
-      (ptyOptions as any).useConpty = true;
-      (ptyOptions as any).conptyInheritCursor = true;
+      (ptyOptions as any).useConpty = false;
     }
 
     const shell = pty.spawn(claudeExe, args, ptyOptions)
