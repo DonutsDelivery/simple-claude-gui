@@ -5,6 +5,9 @@ directories:
   output: dist-build
 files:
   - dist/**/*
+extraResources:
+  - from: resources/icon.png
+    to: icon.png
 
 publish:
   provider: github

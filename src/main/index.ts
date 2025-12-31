@@ -62,6 +62,13 @@ apiServerManager.setPromptHandler((projectPath, prompt) => {
 function createWindow() {
   const bounds = sessionStore.getWindowBounds()
 
+  // Resolve icon path - works in both dev and production
+  // In dev: __dirname is dist/main, resources is at project root
+  // In prod: app is packaged, use process.resourcesPath
+  const iconPath = app.isPackaged
+    ? join(process.resourcesPath, 'icon.png')
+    : join(__dirname, '../../resources/icon.png')
+
   mainWindow = new BrowserWindow({
     width: bounds?.width ?? 1200,
     height: bounds?.height ?? 800,
@@ -70,12 +77,19 @@ function createWindow() {
     frame: false,
     titleBarStyle: 'hidden',
     autoHideMenuBar: true,
+    icon: iconPath,
+    show: false, // Don't show until ready to prevent flicker
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       nodeIntegration: false,
       contextIsolation: true
     },
     backgroundColor: '#1e1e1e'
+  })
+
+  // Show window when ready to prevent flicker and ensure icon is set
+  mainWindow.once('ready-to-show', () => {
+    mainWindow?.show()
   })
 
   if (process.env.NODE_ENV === 'development') {
