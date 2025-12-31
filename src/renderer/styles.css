@@ -1763,6 +1763,45 @@ html, body, #root {
   color: var(--text-secondary);
 }
 
+/* API Port Modal States */
+.modal-success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xl) var(--space-lg);
+  text-align: center;
+}
+
+.modal-success .success-icon {
+  font-size: 48px;
+  color: var(--success);
+  margin-bottom: var(--space-md);
+  animation: scaleIn 0.3s ease;
+}
+
+.modal-success p {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+@keyframes scaleIn {
+  0% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.api-port-modal input.input-error {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.api-port-modal .error-message {
+  color: #ef4444;
+  font-size: 12px;
+  margin-top: var(--space-xs);
+}
+
 /* API Toggle Button */
 .sidebar-btn.api-toggle.running {
   background: var(--success);
