@@ -61,7 +61,8 @@ apiServerManager.setPromptHandler((projectPath, prompt) => {
   // Find a PTY for this project
   for (const [ptyId, path] of ptyToProject) {
     if (path === projectPath) {
-      ptyManager.write(ptyId, prompt + '\n')
+      // Use \r (carriage return) as that's what terminals send for Enter key
+      ptyManager.write(ptyId, prompt + '\r')
       return true
     }
   }
