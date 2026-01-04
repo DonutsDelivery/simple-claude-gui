@@ -70,6 +70,27 @@ export interface ElectronAPI {
   voiceGetSettings: () => Promise<any>
   voiceApplySettings: (settings: any) => Promise<{ success: boolean }>
 
+  // Voice catalog (browse & download from Hugging Face)
+  voiceFetchCatalog: () => Promise<Array<{
+    key: string
+    name: string
+    language: { code: string; name_english: string; country_english: string }
+    quality: string
+    num_speakers: number
+    files: Record<string, { size_bytes: number }>
+  }>>
+  voiceDownloadFromCatalog: (voiceKey: string) => Promise<{ success: boolean; error?: string }>
+  voiceGetInstalled: () => Promise<Array<{
+    key: string
+    displayName: string
+    source: 'builtin' | 'downloaded' | 'custom'
+    quality?: string
+    language?: string
+  }>>
+  voiceImportCustom: () => Promise<{ success: boolean; voiceKey?: string; error?: string }>
+  voiceRemoveCustom: (voiceKey: string) => Promise<{ success: boolean; error?: string }>
+  voiceOpenCustomFolder: () => Promise<void>
+
   // PTY
   spawnPty: (cwd: string, sessionId?: string, model?: string) => Promise<string>
   writePty: (id: string, data: string) => void
@@ -175,6 +196,14 @@ const api: ElectronAPI = {
   voiceSetVoice: (voice) => ipcRenderer.invoke('voice:setVoice', voice),
   voiceGetSettings: () => ipcRenderer.invoke('voice:getSettings'),
   voiceApplySettings: (settings) => ipcRenderer.invoke('voice:applySettings', settings),
+
+  // Voice catalog
+  voiceFetchCatalog: () => ipcRenderer.invoke('voice:fetchCatalog'),
+  voiceDownloadFromCatalog: (voiceKey) => ipcRenderer.invoke('voice:downloadFromCatalog', voiceKey),
+  voiceGetInstalled: () => ipcRenderer.invoke('voice:getInstalled'),
+  voiceImportCustom: () => ipcRenderer.invoke('voice:importCustom'),
+  voiceRemoveCustom: (voiceKey) => ipcRenderer.invoke('voice:removeCustom', voiceKey),
+  voiceOpenCustomFolder: () => ipcRenderer.invoke('voice:openCustomFolder'),
 
   // PTY management
   spawnPty: (cwd, sessionId, model) => ipcRenderer.invoke('pty:spawn', { cwd, sessionId, model }),

@@ -956,6 +956,59 @@ ipcMain.handle('voice:applySettings', async (_, settings: any) => {
   return { success: true }
 })
 
+// Voice catalog (browse & download from Hugging Face)
+ipcMain.handle('voice:fetchCatalog', async () => {
+  return await voiceManager.fetchVoicesCatalog()
+})
+
+ipcMain.handle('voice:downloadFromCatalog', async (_, voiceKey: string) => {
+  return await voiceManager.downloadVoiceFromCatalog(voiceKey)
+})
+
+ipcMain.handle('voice:getInstalled', async () => {
+  return voiceManager.getInstalledVoices()
+})
+
+ipcMain.handle('voice:importCustom', async () => {
+  const { dialog } = require('electron')
+
+  // Select ONNX file
+  const result = await dialog.showOpenDialog(mainWindow!, {
+    title: 'Select Piper Voice Model',
+    filters: [{ name: 'ONNX Model', extensions: ['onnx'] }],
+    properties: ['openFile']
+  })
+
+  if (result.canceled || !result.filePaths[0]) {
+    return { success: false, error: 'No file selected' }
+  }
+
+  const onnxPath = result.filePaths[0]
+
+  // Look for config file with same name
+  const configPath = onnxPath + '.json'
+  const fs = require('fs')
+  if (!fs.existsSync(configPath)) {
+    return { success: false, error: 'Config file (.onnx.json) not found next to model file' }
+  }
+
+  return await voiceManager.importCustomVoiceFiles(onnxPath, configPath)
+})
+
+ipcMain.handle('voice:removeCustom', async (_, voiceKey: string) => {
+  return voiceManager.removeCustomVoice(voiceKey)
+})
+
+ipcMain.handle('voice:openCustomFolder', async () => {
+  const { shell } = require('electron')
+  const customDir = voiceManager.getCustomVoicesDir()
+  const fs = require('fs')
+  if (!fs.existsSync(customDir)) {
+    fs.mkdirSync(customDir, { recursive: true })
+  }
+  shell.openPath(customDir)
+})
+
 // Clipboard image reading and saving (using Electron's native clipboard)
 ipcMain.handle('clipboard:readImage', async () => {
   try {

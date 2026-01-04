@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { themes, getThemeById, applyTheme, Theme } from '../themes'
+import { VoiceBrowserModal } from './VoiceBrowserModal'
 
 // Whisper models available
 const WHISPER_MODELS = [
@@ -64,6 +65,14 @@ export function SettingsModal({ isOpen, onClose, onThemeChange }: SettingsModalP
   const [selectedVoice, setSelectedVoice] = useState('en_US-libritts_r-medium')
   const [installingModel, setInstallingModel] = useState<string | null>(null)
   const [installingVoice, setInstallingVoice] = useState<string | null>(null)
+  const [showVoiceBrowser, setShowVoiceBrowser] = useState(false)
+  const [installedVoices, setInstalledVoices] = useState<Array<{ key: string; displayName: string; source: string }>>([])
+
+  // Load installed voices
+  const refreshInstalledVoices = async () => {
+    const voices = await window.electronAPI.voiceGetInstalled?.()
+    if (voices) setInstalledVoices(voices)
+  }
 
   useEffect(() => {
     if (isOpen) {
@@ -77,6 +86,7 @@ export function SettingsModal({ isOpen, onClose, onThemeChange }: SettingsModalP
       // Load voice status
       window.electronAPI.voiceCheckWhisper?.().then(setWhisperStatus).catch(() => {})
       window.electronAPI.voiceCheckTTS?.().then(setTtsStatus).catch(() => {})
+      refreshInstalledVoices()
     }
   }, [isOpen])
 
@@ -310,33 +320,37 @@ export function SettingsModal({ isOpen, onClose, onThemeChange }: SettingsModalP
           <div className="form-group">
             <label>Voice Output (Text-to-Speech)</label>
             <p className="form-hint">
-              Piper voices for Claude to speak responses aloud.
+              Piper voices for Claude to speak responses aloud. Browse 100+ voices in 35+ languages.
             </p>
             <div className="voice-options">
-              {PIPER_VOICES.map((voice) => {
-                const isInstalled = ttsStatus.voices.includes(voice.value)
-                const isInstalling = installingVoice === voice.value
-                return (
-                  <div key={voice.value} className={`voice-option ${isInstalled ? 'installed' : ''}`}>
+              {installedVoices.length > 0 ? (
+                installedVoices.map((voice) => (
+                  <div key={voice.key} className="voice-option installed">
                     <div className="voice-info">
-                      <span className="voice-label">{voice.label}</span>
-                      <span className="voice-desc">{voice.desc}</span>
+                      <span className="voice-label">{voice.displayName}</span>
+                      <span className="voice-desc">
+                        {voice.source === 'builtin' ? 'Built-in' : voice.source === 'custom' ? 'Custom' : 'Downloaded'}
+                      </span>
                     </div>
-                    {isInstalled ? (
-                      <span className="voice-status installed">Installed</span>
-                    ) : (
-                      <button
-                        className="voice-install-btn"
-                        onClick={() => handleInstallVoice(voice.value)}
-                        disabled={isInstalling}
-                      >
-                        {isInstalling ? 'Installing...' : 'Install'}
-                      </button>
-                    )}
+                    <span className="voice-status installed">Installed</span>
                   </div>
-                )
-              })}
+                ))
+              ) : (
+                <div className="voice-option">
+                  <div className="voice-info">
+                    <span className="voice-label">No voices installed</span>
+                    <span className="voice-desc">Browse and download voices to get started</span>
+                  </div>
+                </div>
+              )}
             </div>
+            <button
+              className="btn-secondary"
+              onClick={() => setShowVoiceBrowser(true)}
+              style={{ marginTop: '8px' }}
+            >
+              Browse Voices...
+            </button>
           </div>
         </div>
         <div className="modal-footer">
@@ -344,6 +358,18 @@ export function SettingsModal({ isOpen, onClose, onThemeChange }: SettingsModalP
           <button className="btn-primary" onClick={handleSave}>Save</button>
         </div>
       </div>
+
+      <VoiceBrowserModal
+        isOpen={showVoiceBrowser}
+        onClose={() => {
+          setShowVoiceBrowser(false)
+          refreshInstalledVoices()
+        }}
+        onVoiceSelect={(voiceKey) => {
+          setSelectedVoice(voiceKey)
+          window.electronAPI.voiceSetVoice?.(voiceKey)
+        }}
+      />
     </div>
   )
 }

@@ -1307,6 +1307,186 @@ html, body, #root {
 }
 
 /* ============================================
+   Voice Browser Modal
+   ============================================ */
+
+.voice-browser-modal {
+  width: 700px;
+  max-width: 90vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.voice-browser-filters {
+  display: flex;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-xl);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.voice-search {
+  flex: 1;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-base);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.voice-search::placeholder {
+  color: var(--text-tertiary);
+}
+
+.voice-filter {
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-base);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 13px;
+  min-width: 120px;
+}
+
+.voice-browser-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.voice-browser-loading,
+.voice-browser-error {
+  padding: var(--space-xl);
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.voice-browser-error {
+  color: #ef4444;
+}
+
+.voice-browser-header {
+  display: flex;
+  padding: var(--space-sm) var(--space-xl);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+}
+
+.voice-browser-list {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 400px;
+}
+
+.voice-browser-row {
+  display: flex;
+  padding: var(--space-sm) var(--space-xl);
+  font-size: 13px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: default;
+  transition: background var(--transition-fast);
+}
+
+.voice-browser-row:hover {
+  background: var(--bg-hover);
+}
+
+.voice-browser-row.installed {
+  cursor: pointer;
+}
+
+.voice-browser-row.installed:hover {
+  background: var(--accent-subtle);
+}
+
+.voice-col-name {
+  flex: 2;
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.voice-col-lang {
+  flex: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.voice-col-quality {
+  flex: 1;
+  text-transform: capitalize;
+}
+
+.voice-col-size {
+  flex: 1;
+  text-align: right;
+}
+
+.voice-col-action {
+  flex: 1.5;
+  text-align: right;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.voice-installed-badge {
+  color: var(--success);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.voice-downloading {
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.voice-download-btn {
+  padding: var(--space-xs) var(--space-md);
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.voice-download-btn:hover {
+  background: var(--accent-hover);
+}
+
+.voice-browser-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-md) var(--space-xl);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+}
+
+.voice-browser-actions {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.voice-browser-stats {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+/* ============================================
    Form Elements
    ============================================ */
 
