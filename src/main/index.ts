@@ -33,6 +33,7 @@ import {
 } from './portable-deps'
 import { initUpdater } from './updater'
 import { voiceManager, WHISPER_MODELS, PIPER_VOICES, WhisperModelName, PiperVoiceName } from './voice-manager'
+import { xttsManager, XTTS_LANGUAGES } from './xtts-manager'
 
 // Debug mode - enables manual refresh button and disables hot-reload
 const isDebugMode = process.argv.includes('--debug')
@@ -939,9 +940,13 @@ ipcMain.handle('voice:getWhisperModels', async () => {
   return { installed: installedModels, all }
 })
 
-// Set TTS voice
-ipcMain.handle('voice:setVoice', async (_, voice: string) => {
-  voiceManager.setTTSVoice(voice)
+// Set TTS voice (supports both Piper and XTTS)
+ipcMain.handle('voice:setVoice', async (_, voice: string | { voice: string; engine: 'piper' | 'xtts' }) => {
+  if (typeof voice === 'string') {
+    voiceManager.setTTSVoice(voice)
+  } else {
+    voiceManager.setTTSVoice(voice.voice, voice.engine)
+  }
   return { success: true }
 })
 
@@ -1007,6 +1012,51 @@ ipcMain.handle('voice:openCustomFolder', async () => {
     fs.mkdirSync(customDir, { recursive: true })
   }
   shell.openPath(customDir)
+})
+
+// XTTS (voice cloning) handlers
+ipcMain.handle('xtts:check', async () => {
+  return await xttsManager.checkInstallation()
+})
+
+ipcMain.handle('xtts:install', async () => {
+  return await xttsManager.install()
+})
+
+ipcMain.handle('xtts:createVoice', async (_, { audioPath, name, language }) => {
+  return await xttsManager.createVoice(audioPath, name, language)
+})
+
+ipcMain.handle('xtts:getVoices', async () => {
+  return xttsManager.getVoices()
+})
+
+ipcMain.handle('xtts:deleteVoice', async (_, voiceId: string) => {
+  return xttsManager.deleteVoice(voiceId)
+})
+
+ipcMain.handle('xtts:speak', async (_, { text, voiceId, language }) => {
+  return await xttsManager.speak(text, voiceId, language)
+})
+
+ipcMain.handle('xtts:selectAudio', async () => {
+  const { dialog } = require('electron')
+
+  const result = await dialog.showOpenDialog(mainWindow!, {
+    title: 'Select Voice Sample Audio',
+    filters: [{ name: 'Audio Files', extensions: ['wav', 'mp3', 'ogg', 'flac', 'm4a'] }],
+    properties: ['openFile']
+  })
+
+  if (result.canceled || !result.filePaths[0]) {
+    return { success: false, error: 'No file selected' }
+  }
+
+  return { success: true, path: result.filePaths[0] }
+})
+
+ipcMain.handle('xtts:getLanguages', async () => {
+  return XTTS_LANGUAGES
 })
 
 // Clipboard image reading and saving (using Electron's native clipboard)

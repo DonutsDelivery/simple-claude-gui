@@ -5,6 +5,7 @@ import * as https from 'https'
 import { exec, spawn, ChildProcess } from 'child_process'
 import { promisify } from 'util'
 import { isWindows, isMac } from './platform'
+import { xttsManager } from './xtts-manager'
 
 const execAsync = promisify(exec)
 
@@ -102,14 +103,14 @@ export interface WhisperStatus {
 
 export interface TTSStatus {
   installed: boolean
-  engine: 'piper' | 'openvoice' | null
+  engine: 'piper' | 'xtts' | 'openvoice' | null
   voices: string[]
   currentVoice: string | null
 }
 
 export interface VoiceSettings {
   whisperModel: WhisperModelName
-  ttsEngine: 'piper' | 'openvoice'
+  ttsEngine: 'piper' | 'xtts' | 'openvoice'
   ttsVoice: string
   ttsSpeed: number  // 0.5 = slow, 1.0 = normal, 2.0 = fast (Piper length_scale is inverted)
   microphoneId: string | null
@@ -267,7 +268,8 @@ async function extractArchive(archivePath: string, destDir: string): Promise<voi
 class VoiceManager {
   private currentWhisperModel: WhisperModelName = 'base.en'
   private currentTTSVoice: string = 'en_US-libritts_r-medium'
-  private currentTTSEngine: 'piper' | 'openvoice' = 'piper'
+  private currentTTSEngine: 'piper' | 'xtts' | 'openvoice' = 'piper'
+  private currentXTTSVoice: string | null = null  // XTTS voice ID
   private currentTTSSpeed: number = 1.0
   private speakingProcess: ChildProcess | null = null
 
@@ -479,15 +481,26 @@ class VoiceManager {
     }
   }
 
-  setTTSVoice(voice: string): void {
-    // Support built-in, downloaded, and custom voices
-    if (this.getAnyVoicePath(voice)) {
-      this.currentTTSVoice = voice
+  setTTSVoice(voice: string, engine?: 'piper' | 'xtts'): void {
+    if (engine === 'xtts') {
+      // Set XTTS voice
+      this.currentXTTSVoice = voice
+      this.currentTTSEngine = 'xtts'
+    } else {
+      // Support built-in, downloaded, and custom Piper voices
+      if (this.getAnyVoicePath(voice)) {
+        this.currentTTSVoice = voice
+        this.currentTTSEngine = 'piper'
+      }
     }
   }
 
-  setTTSEngine(engine: 'piper' | 'openvoice'): void {
+  setTTSEngine(engine: 'piper' | 'xtts' | 'openvoice'): void {
     this.currentTTSEngine = engine
+  }
+
+  getCurrentEngine(): 'piper' | 'xtts' | 'openvoice' {
+    return this.currentTTSEngine
   }
 
   setTTSSpeed(speed: number): void {
@@ -495,9 +508,18 @@ class VoiceManager {
     this.currentTTSSpeed = Math.max(0.5, Math.min(2.0, speed))
   }
 
-  // Speak text using Piper TTS
+  // Speak text using the current TTS engine
   // Returns the audio data as base64
   async speak(text: string): Promise<{ success: boolean; audioData?: string; error?: string }> {
+    // Route to XTTS if that's the current engine
+    if (this.currentTTSEngine === 'xtts') {
+      if (!this.currentXTTSVoice) {
+        return { success: false, error: 'No XTTS voice selected' }
+      }
+      return xttsManager.speak(text, this.currentXTTSVoice)
+    }
+
+    // Use Piper TTS
     const piperPath = this.getPiperBinaryPath()
     if (!piperPath) {
       return { success: false, error: 'Piper not installed' }
@@ -554,10 +576,13 @@ class VoiceManager {
   }
 
   stopSpeaking(): void {
+    // Stop Piper process if running
     if (this.speakingProcess) {
       this.speakingProcess.kill()
       this.speakingProcess = null
     }
+    // Also stop XTTS if it's speaking
+    xttsManager.stopSpeaking()
   }
 
   // ==================== VOICE CATALOG (Browse & Download) ====================

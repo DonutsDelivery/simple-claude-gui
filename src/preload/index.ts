@@ -66,7 +66,7 @@ export interface ElectronAPI {
   voiceStopSpeaking: () => Promise<{ success: boolean }>
   voiceGetVoices: () => Promise<{ installed: string[]; all: Array<{ id: string; description: string; license: string; installed: boolean }> }>
   voiceGetWhisperModels: () => Promise<{ installed: string[]; all: Array<{ id: string; size: number; installed: boolean }> }>
-  voiceSetVoice: (voice: string) => Promise<{ success: boolean }>
+  voiceSetVoice: (voice: string | { voice: string; engine: 'piper' | 'xtts' }) => Promise<{ success: boolean }>
   voiceGetSettings: () => Promise<any>
   voiceApplySettings: (settings: any) => Promise<{ success: boolean }>
 
@@ -90,6 +90,16 @@ export interface ElectronAPI {
   voiceImportCustom: () => Promise<{ success: boolean; voiceKey?: string; error?: string }>
   voiceRemoveCustom: (voiceKey: string) => Promise<{ success: boolean; error?: string }>
   voiceOpenCustomFolder: () => Promise<void>
+
+  // XTTS (voice cloning)
+  xttsCheck: () => Promise<{ installed: boolean; pythonPath: string | null; modelDownloaded: boolean; error?: string }>
+  xttsInstall: () => Promise<{ success: boolean; error?: string }>
+  xttsCreateVoice: (audioPath: string, name: string, language: string) => Promise<{ success: boolean; voiceId?: string; error?: string }>
+  xttsGetVoices: () => Promise<Array<{ id: string; name: string; language: string; createdAt: number }>>
+  xttsDeleteVoice: (voiceId: string) => Promise<{ success: boolean; error?: string }>
+  xttsSpeak: (text: string, voiceId: string, language?: string) => Promise<{ success: boolean; audioData?: string; error?: string }>
+  xttsSelectAudio: () => Promise<{ success: boolean; path?: string; error?: string }>
+  xttsGetLanguages: () => Promise<Array<{ code: string; name: string }>>
 
   // PTY
   spawnPty: (cwd: string, sessionId?: string, model?: string) => Promise<string>
@@ -204,6 +214,16 @@ const api: ElectronAPI = {
   voiceImportCustom: () => ipcRenderer.invoke('voice:importCustom'),
   voiceRemoveCustom: (voiceKey) => ipcRenderer.invoke('voice:removeCustom', voiceKey),
   voiceOpenCustomFolder: () => ipcRenderer.invoke('voice:openCustomFolder'),
+
+  // XTTS (voice cloning)
+  xttsCheck: () => ipcRenderer.invoke('xtts:check'),
+  xttsInstall: () => ipcRenderer.invoke('xtts:install'),
+  xttsCreateVoice: (audioPath, name, language) => ipcRenderer.invoke('xtts:createVoice', { audioPath, name, language }),
+  xttsGetVoices: () => ipcRenderer.invoke('xtts:getVoices'),
+  xttsDeleteVoice: (voiceId) => ipcRenderer.invoke('xtts:deleteVoice', voiceId),
+  xttsSpeak: (text, voiceId, language) => ipcRenderer.invoke('xtts:speak', { text, voiceId, language }),
+  xttsSelectAudio: () => ipcRenderer.invoke('xtts:selectAudio'),
+  xttsGetLanguages: () => ipcRenderer.invoke('xtts:getLanguages'),
 
   // PTY management
   spawnPty: (cwd, sessionId, model) => ipcRenderer.invoke('pty:spawn', { cwd, sessionId, model }),

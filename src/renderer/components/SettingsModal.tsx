@@ -365,9 +365,9 @@ export function SettingsModal({ isOpen, onClose, onThemeChange }: SettingsModalP
           setShowVoiceBrowser(false)
           refreshInstalledVoices()
         }}
-        onVoiceSelect={(voiceKey) => {
-          setSelectedVoice(voiceKey)
-          window.electronAPI.voiceSetVoice?.(voiceKey)
+        onVoiceSelect={(voiceKey, engine) => {
+          setSelectedVoice(engine === 'xtts' ? `xtts:${voiceKey}` : voiceKey)
+          window.electronAPI.voiceSetVoice?.({ voice: voiceKey, engine })
         }}
       />
     </div>
