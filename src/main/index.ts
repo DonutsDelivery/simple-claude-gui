@@ -36,7 +36,7 @@ import { voiceManager, WHISPER_MODELS, PIPER_VOICES, WhisperModelName, PiperVoic
 import { xttsManager, XTTS_LANGUAGES } from './xtts-manager'
 
 // Debug mode - enables manual refresh button and disables hot-reload
-const isDebugMode = process.argv.includes('--debug')
+const isDebugMode = process.argv.includes('--debug') || process.env.DEBUG_MODE === '1'
 
 // Single instance lock - prevent multiple instances
 const gotTheLock = app.requestSingleInstanceLock()

@@ -149,7 +149,7 @@ export function Terminal({ ptyId, isActive, theme, onFocus }: TerminalProps) {
   const voiceOutputEnabledRef = useRef(voiceOutputEnabled)
   const isActiveRef = useRef(isActive)
   const spokenContentRef = useRef<Set<string>>(new Set())  // Track what we've already spoken
-  const silentModeRef = useRef(false)  // Only enable when there's buffered content to replay
+  const silentModeRef = useRef(true)  // Start silent - only speak new content after startup
   const silentModeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const ttsBufferRef = useRef('')  // Buffer for accumulating TTS tags across chunks
 
@@ -164,6 +164,11 @@ export function Terminal({ ptyId, isActive, theme, onFocus }: TerminalProps) {
 
   useEffect(() => {
     if (!containerRef.current) return
+
+    // Reset TTS state for this terminal session
+    silentModeRef.current = true
+    spokenContentRef.current.clear()
+    ttsBufferRef.current = ''
 
     const t = theme.terminal
     const terminal = new XTerm({
@@ -216,9 +221,6 @@ export function Terminal({ ptyId, isActive, theme, onFocus }: TerminalProps) {
     // Replay buffered content on mount (for HMR recovery)
     const buffer = terminalBuffers.get(ptyId)!
     if (buffer.length > 0) {
-      // Enable silent mode while replaying buffered content
-      silentModeRef.current = true
-
       // Pre-populate spoken content set from buffered data to prevent re-speaking old content
       for (const chunk of buffer) {
         const cleanChunk = stripAnsi(chunk)
@@ -237,12 +239,10 @@ export function Terminal({ ptyId, isActive, theme, onFocus }: TerminalProps) {
         terminal.write(chunk)
       }
       terminal.scrollToBottom()
-
-      // Exit silent mode after buffer replay settles
-      silentModeTimeoutRef.current = setTimeout(() => {
-        silentModeRef.current = false
-      }, 500)
     }
+
+    // Silent mode stays on until user types - no timer needed
+    // TTS only activates after user sends input to the terminal
 
     // Helper to check if terminal is at bottom
     const isAtBottom = () => {
@@ -273,8 +273,12 @@ export function Terminal({ ptyId, isActive, theme, onFocus }: TerminalProps) {
       fitAddon.fit()
     })
 
-    // Handle terminal input
+    // Handle terminal input - also enables TTS after first user input
     terminal.onData((data) => {
+      // User has typed something - now safe to enable TTS for responses
+      if (silentModeRef.current) {
+        silentModeRef.current = false
+      }
       window.electronAPI.writePty(ptyId, data)
     })
 
@@ -388,10 +392,11 @@ export function Terminal({ ptyId, isActive, theme, onFocus }: TerminalProps) {
 
         if (looksLikeProse && !spokenContentRef.current.has(content)) {
           spokenContentRef.current.add(content)
-          // Only speak if voice enabled, tab active, and not in silent mode
+          // Only speak if voice enabled, tab active, and not in silent mode (startup grace period)
           if (voiceOutputEnabledRef.current && isActiveRef.current && !silentModeRef.current) {
             speakText(content)
           }
+          // During silent mode, content is tracked but not spoken - prevents reading old messages
         }
       }
 

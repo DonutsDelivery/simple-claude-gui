@@ -1,3 +1,3 @@
 #!/bin/bash
 cd /home/user/Programs/Claude-Terminal
-npm run dev
+DEBUG_MODE=1 npm run dev

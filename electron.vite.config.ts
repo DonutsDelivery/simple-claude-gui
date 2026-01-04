@@ -26,6 +26,9 @@ export default defineConfig({
         input: resolve(__dirname, 'src/renderer/index.html')
       }
     },
+    server: {
+      hmr: false  // Disable hot reload - use manual refresh button in debug mode
+    },
     plugins: [react()]
   }
 })

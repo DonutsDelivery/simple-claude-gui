@@ -220,8 +220,8 @@ function downloadFile(url: string, destPath: string, onProgress?: (percent: numb
 function fetchJson<T>(url: string): Promise<T> {
   return new Promise((resolve, reject) => {
     const request = https.get(url, (response) => {
-      // Handle redirects
-      if (response.statusCode === 301 || response.statusCode === 302) {
+      // Handle redirects (301, 302, 307, 308)
+      if (response.statusCode && [301, 302, 307, 308].includes(response.statusCode)) {
         fetchJson<T>(response.headers.location!)
           .then(resolve)
           .catch(reject)
