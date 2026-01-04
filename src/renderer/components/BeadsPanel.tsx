@@ -190,7 +190,26 @@ export function BeadsPanel({ projectPath, isExpanded, onToggle }: BeadsPanelProp
     if (!projectPath || !newTaskTitle.trim()) return
 
     try {
-      const result = await window.electronAPI.beadsCreate(projectPath, newTaskTitle.trim())
+      let title = newTaskTitle.trim()
+      let description: string | undefined
+
+      // If over 500 chars, split into title and description
+      if (title.length > 500) {
+        // Try to split at first sentence end, or at 100 chars
+        const firstSentence = title.match(/^[^.!?]+[.!?]/)
+        if (firstSentence && firstSentence[0].length <= 100) {
+          title = firstSentence[0].trim()
+          description = newTaskTitle.trim().slice(firstSentence[0].length).trim()
+        } else {
+          // Split at ~100 chars at word boundary
+          const cutoff = title.slice(0, 100).lastIndexOf(' ')
+          const splitAt = cutoff > 50 ? cutoff : 100
+          title = title.slice(0, splitAt).trim()
+          description = newTaskTitle.trim().slice(splitAt).trim()
+        }
+      }
+
+      const result = await window.electronAPI.beadsCreate(projectPath, title, description)
       if (result.success) {
         setNewTaskTitle('')
         setShowCreateForm(false)
@@ -422,20 +441,28 @@ export function BeadsPanel({ projectPath, isExpanded, onToggle }: BeadsPanelProp
 
               {showCreateForm ? (
                 <div className="beads-create-form">
-                  <input
-                    type="text"
+                  <textarea
                     value={newTaskTitle}
                     onChange={(e) => setNewTaskTitle(e.target.value)}
-                    placeholder="Task title..."
+                    placeholder="Task title or description..."
                     autoFocus
+                    rows={2}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleCreateTask()
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault()
+                        handleCreateTask()
+                      }
                       if (e.key === 'Escape') setShowCreateForm(false)
                     }}
                   />
-                  <div className="beads-create-actions">
-                    <button onClick={handleCreateTask}>Add</button>
-                    <button onClick={() => setShowCreateForm(false)}>Cancel</button>
+                  <div className="beads-create-footer">
+                    <span className={`beads-char-count ${newTaskTitle.length > 500 ? 'over-limit' : ''}`}>
+                      {newTaskTitle.length > 500 ? `${newTaskTitle.length}/500 (will split)` : `${newTaskTitle.length}`}
+                    </span>
+                    <div className="beads-create-actions">
+                      <button onClick={handleCreateTask}>Add</button>
+                      <button onClick={() => setShowCreateForm(false)}>Cancel</button>
+                    </div>
                   </div>
                 </div>
               ) : (

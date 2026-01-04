@@ -36,7 +36,7 @@ export const PIPER_VOICES = {
     url: 'https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/libritts_r/medium/en_US-libritts_r-medium.onnx',
     configUrl: 'https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/libritts_r/medium/en_US-libritts_r-medium.onnx.json',
     license: 'CC-BY-4.0',
-    description: 'LibriTTS-R (US English, medium quality)'
+    description: 'LibriTTS-R (US English)'
   },
   'en_GB-jenny_dioco-medium': {
     file: 'en_GB-jenny_dioco-medium.onnx',
@@ -44,7 +44,7 @@ export const PIPER_VOICES = {
     url: 'https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_GB/jenny_dioco/medium/en_GB-jenny_dioco-medium.onnx',
     configUrl: 'https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_GB/jenny_dioco/medium/en_GB-jenny_dioco-medium.onnx.json',
     license: 'CC0',
-    description: 'Jenny DioCo (British English, medium quality)'
+    description: 'Jenny DioCo (British)'
   },
   'en_US-ryan-medium': {
     file: 'en_US-ryan-medium.onnx',
@@ -52,7 +52,31 @@ export const PIPER_VOICES = {
     url: 'https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/ryan/medium/en_US-ryan-medium.onnx',
     configUrl: 'https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/ryan/medium/en_US-ryan-medium.onnx.json',
     license: 'CC-BY-4.0',
-    description: 'Ryan (US English male, medium quality)'
+    description: 'Ryan (US English male)'
+  },
+  'en_US-amy-medium': {
+    file: 'en_US-amy-medium.onnx',
+    config: 'en_US-amy-medium.onnx.json',
+    url: 'https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/amy/medium/en_US-amy-medium.onnx',
+    configUrl: 'https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/amy/medium/en_US-amy-medium.onnx.json',
+    license: 'CC-BY-4.0',
+    description: 'Amy (US English female)'
+  },
+  'en_US-arctic-medium': {
+    file: 'en_US-arctic-medium.onnx',
+    config: 'en_US-arctic-medium.onnx.json',
+    url: 'https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/arctic/medium/en_US-arctic-medium.onnx',
+    configUrl: 'https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/arctic/medium/en_US-arctic-medium.onnx.json',
+    license: 'CC0',
+    description: 'Arctic (US English, multi-speaker)'
+  },
+  'en_GB-alan-medium': {
+    file: 'en_GB-alan-medium.onnx',
+    config: 'en_GB-alan-medium.onnx.json',
+    url: 'https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_GB/alan/medium/en_GB-alan-medium.onnx',
+    configUrl: 'https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_GB/alan/medium/en_GB-alan-medium.onnx.json',
+    license: 'CC-BY-4.0',
+    description: 'Alan (British male)'
   }
 } as const
 
@@ -82,8 +106,10 @@ export interface VoiceSettings {
   whisperModel: WhisperModelName
   ttsEngine: 'piper' | 'openvoice'
   ttsVoice: string
+  ttsSpeed: number  // 0.5 = slow, 1.0 = normal, 2.0 = fast (Piper length_scale is inverted)
   microphoneId: string | null
   readBehavior: 'immediate' | 'pause' | 'manual'
+  skipOnNew: boolean  // If true, interrupt current speech when new text arrives
 }
 
 // Ensure directories exist
@@ -169,6 +195,7 @@ class VoiceManager {
   private currentWhisperModel: WhisperModelName = 'base.en'
   private currentTTSVoice: string = 'en_US-libritts_r-medium'
   private currentTTSEngine: 'piper' | 'openvoice' = 'piper'
+  private currentTTSSpeed: number = 1.0
   private speakingProcess: ChildProcess | null = null
 
   // ==================== WHISPER (STT) ====================
@@ -389,6 +416,11 @@ class VoiceManager {
     this.currentTTSEngine = engine
   }
 
+  setTTSSpeed(speed: number): void {
+    // Clamp between 0.5 and 2.0
+    this.currentTTSSpeed = Math.max(0.5, Math.min(2.0, speed))
+  }
+
   // Speak text using Piper TTS
   // Returns the audio data as base64
   async speak(text: string): Promise<{ success: boolean; audioData?: string; error?: string }> {
@@ -407,9 +439,12 @@ class VoiceManager {
       const outputPath = path.join(tempDir, `tts_${Date.now()}.wav`)
 
       // Piper takes text from stdin and outputs WAV to file
+      // length_scale: <1 = faster, >1 = slower. Convert from our speed (>1 = faster)
+      const lengthScale = 1.0 / this.currentTTSSpeed
       const args = [
         '--model', voicePaths.model,
-        '--output_file', outputPath
+        '--output_file', outputPath,
+        '--length_scale', lengthScale.toFixed(2)
       ]
 
       return new Promise((resolve) => {
@@ -476,8 +511,10 @@ class VoiceManager {
       whisperModel: this.currentWhisperModel,
       ttsEngine: this.currentTTSEngine,
       ttsVoice: this.currentTTSVoice,
+      ttsSpeed: this.currentTTSSpeed,
       microphoneId: null, // Retrieved from renderer
-      readBehavior: 'immediate'
+      readBehavior: 'immediate',
+      skipOnNew: false
     }
   }
 
@@ -490,6 +527,9 @@ class VoiceManager {
     }
     if (settings.ttsVoice) {
       this.setTTSVoice(settings.ttsVoice)
+    }
+    if (settings.ttsSpeed !== undefined) {
+      this.setTTSSpeed(settings.ttsSpeed)
     }
   }
 }

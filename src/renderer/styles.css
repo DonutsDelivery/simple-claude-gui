@@ -1269,6 +1269,7 @@ html, body, #root {
   justify-content: space-between;
   padding: var(--space-lg) var(--space-xl);
   border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
 }
 
 .modal-header h2 {
@@ -1302,6 +1303,7 @@ html, body, #root {
   gap: var(--space-sm);
   padding: var(--space-lg) var(--space-xl);
   border-top: 1px solid var(--border-subtle);
+  flex-shrink: 0;
 }
 
 /* ============================================
@@ -1499,10 +1501,21 @@ html, body, #root {
 .settings-modal {
   width: 560px;
   max-height: 85vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .settings-modal .modal-content {
   overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.settings-modal .form-hint {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .theme-grid {
@@ -1796,13 +1809,7 @@ html, body, #root {
    Sidebar Action Buttons
    ============================================ */
 
-.sidebar-actions {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  padding: var(--space-md) var(--space-lg);
-  border-top: 1px solid var(--border-subtle);
-}
+/* See .sidebar-actions in ACTION ICON BUTTONS section */
 
 .sidebar-btn {
   padding: var(--space-md) var(--space-lg);
@@ -2549,7 +2556,8 @@ html, body, #root {
   gap: var(--space-sm);
 }
 
-.beads-create-form input {
+.beads-create-form input,
+.beads-create-form textarea {
   width: 100%;
   padding: var(--space-sm);
   background: var(--bg-surface);
@@ -2558,11 +2566,30 @@ html, body, #root {
   color: var(--text-primary);
   font-size: 13px;
   font-family: var(--font-ui);
+  resize: vertical;
+  min-height: 36px;
 }
 
-.beads-create-form input:focus {
+.beads-create-form input:focus,
+.beads-create-form textarea:focus {
   outline: none;
   border-color: var(--accent);
+}
+
+.beads-create-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.beads-char-count {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.beads-char-count.over-limit {
+  color: var(--warning, #f0ad4e);
 }
 
 .beads-create-actions {
@@ -2700,4 +2727,357 @@ html, body, #root {
   color: #f44;
   font-family: var(--font-mono);
   cursor: help;
+}
+
+
+/* ==================== ACTION ICON BUTTONS ==================== */
+
+.sidebar-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  padding: 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+.voice-options {
+  padding: 8px 12px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.voice-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.voice-option-icon {
+  font-size: 12px;
+  opacity: 0.7;
+  width: 16px;
+  text-align: center;
+}
+
+.voice-slider {
+  flex: 1;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--border-color);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.voice-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  background: var(--text-primary);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.voice-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  background: var(--text-primary);
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+}
+
+.voice-option-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding-left: 24px;
+}
+
+.voice-option-checkbox input {
+  margin: 0;
+  cursor: pointer;
+}
+
+.voice-option-checkbox span {
+  user-select: none;
+}
+
+.action-icon-btn {
+  background: none;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 22px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.6;
+  transition: all var(--transition-fast);
+}
+
+.action-icon-btn:hover:not(:disabled) {
+  opacity: 1;
+  background: var(--bg-hover);
+}
+
+.action-icon-btn.enabled {
+  opacity: 1;
+  background: var(--accent);
+}
+
+.action-icon-btn.installing {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.action-icon-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.voice-record-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid var(--border-color);
+  background: var(--bg-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  transition: all var(--transition-fast);
+}
+
+.voice-record-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  transform: scale(1.05);
+}
+
+.voice-record-btn.recording {
+  border-color: #ef4444;
+  background: #fee2e2;
+  animation: voice-pulse 1s infinite;
+}
+
+.voice-record-btn.transcribing {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.voice-record-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@keyframes voice-pulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  50% { transform: scale(1.05); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+}
+
+.voice-speaking-indicator {
+  font-size: 16px;
+  animation: voice-speaking 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes voice-speaking {
+  from { opacity: 0.5; }
+  to { opacity: 1; }
+}
+
+/* Voice Setup UI */
+.voice-setup {
+  margin-top: 8px;
+  padding: 8px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+}
+
+.voice-install-status {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  padding: 4px 8px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+}
+
+.voice-setup-section {
+  margin-bottom: 8px;
+}
+
+.voice-setup-section:last-child {
+  margin-bottom: 0;
+}
+
+.voice-setup-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.voice-model-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.voice-model-btn {
+  text-align: left;
+  padding: 6px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.voice-model-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+}
+
+.voice-model-btn:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.voice-install-btn {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.voice-install-btn:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.voice-install-btn:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+
+/* Add project buttons in projects list */
+.project-add-buttons {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 0 8px;
+}
+
+.add-project-btn {
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.add-project-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--bg-hover);
+}
+
+/* Voice Options in Settings */
+.voice-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.voice-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+}
+
+.voice-option.installed {
+  border-color: var(--success);
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.voice-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.voice-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.voice-desc {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.voice-status.installed {
+  font-size: 12px;
+  color: var(--success);
+  font-weight: 500;
+}
+
+.voice-option .voice-install-btn {
+  width: auto;
+  padding: 6px 12px;
+  font-size: 11px;
+}
+
+/* Recording animation for voice input */
+.action-icon-btn.recording {
+  animation: pulse-recording 1s ease-in-out infinite;
+}
+
+@keyframes pulse-recording {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+  }
+}
+
+.action-icon-btn.recording.enabled {
+  background: #ef4444;
+}
+
+/* Voice input not yet ready */
+.action-icon-btn.not-ready {
+  opacity: 0.5;
 }

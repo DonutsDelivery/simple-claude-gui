@@ -3,6 +3,8 @@ import ReactDOM from 'react-dom'
 import { Project } from '../stores/workspace'
 import { ProjectIcon } from './ProjectIcon'
 import { BeadsPanel } from './BeadsPanel'
+import { VoiceControls } from './VoiceControls'
+import { useVoice } from '../contexts/VoiceContext'
 
 // Tool patterns for quick selection
 const COMMON_TOOLS = [
@@ -91,6 +93,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ projects, openTabs, activeTabId, lastFocusedTabId, onAddProject, onRemoveProject, onOpenSession, onSwitchToTab, onOpenSettings, onOpenMakeProject, onUpdateProject, onCloseProjectTabs, width, collapsed, onWidthChange, onCollapsedChange }: SidebarProps) {
+  const { volume, setVolume, speed, setSpeed, skipOnNew, setSkipOnNew, voiceOutputEnabled } = useVoice()
   const [expandedProject, setExpandedProject] = useState<string | null>(null)
   const [sessions, setSessions] = useState<Record<string, ClaudeSession[]>>({})
   const [beadsExpanded, setBeadsExpanded] = useState(true)
@@ -514,9 +517,25 @@ export function Sidebar({ projects, openTabs, activeTabId, lastFocusedTabId, onA
         ))}
         {projects.length === 0 && (
           <div className="empty-projects">
-            No projects yet.<br />Click below to add one.
+            No projects yet.<br />Click + to add one.
           </div>
         )}
+        <div className="project-add-buttons">
+          <button
+            className="add-project-btn"
+            onClick={onOpenMakeProject}
+            title="Create new project from scratch"
+          >
+            + make
+          </button>
+          <button
+            className="add-project-btn"
+            onClick={onAddProject}
+            title="Add existing project folder"
+          >
+            + add
+          </button>
+        </div>
       </div>
       <BeadsPanel
         projectPath={beadsProjectPath}
@@ -524,21 +543,14 @@ export function Sidebar({ projects, openTabs, activeTabId, lastFocusedTabId, onA
         onToggle={() => setBeadsExpanded(!beadsExpanded)}
       />
       <div className="sidebar-actions">
-        {(() => {
-          const focusedProject = projects.find(p => p.path === focusedProjectPath)
-          if (focusedProject?.executable) {
-            return (
-              <button
-                className="sidebar-btn run-app"
-                onClick={() => handleRunExecutable(focusedProject)}
-                title={`Run: ${focusedProject.executable}`}
-              >
-                <span className="icon">▶</span> Run App
-              </button>
-            )
-          }
-          return null
-        })()}
+        <VoiceControls
+          activeTabId={activeTabId}
+          onTranscription={(text) => {
+            if (activeTabId) {
+              window.electronAPI.writePty(activeTabId, text + '\n')
+            }
+          }}
+        />
         {(() => {
           const focusedProject = projects.find(p => p.path === focusedProjectPath)
           if (focusedProject) {
@@ -546,34 +558,70 @@ export function Sidebar({ projects, openTabs, activeTabId, lastFocusedTabId, onA
             const hasPort = !!focusedProject.apiPort
             return (
               <button
-                className={`sidebar-btn api-toggle ${status?.running ? 'running' : ''}`}
+                className={`action-icon-btn ${status?.running ? 'enabled' : ''}`}
                 onClick={() => {
                   if (!hasPort) {
-                    // No port configured, open project settings
                     handleOpenProjectSettings(focusedProject)
                   } else {
                     handleToggleApi(focusedProject)
                   }
                 }}
-                title={status?.running ? `Stop API Server (port ${focusedProject.apiPort})` : hasPort ? `Start API Server (port ${focusedProject.apiPort})` : 'Configure API'}
+                tabIndex={-1}
+                title={status?.running ? `Stop API (port ${focusedProject.apiPort})` : hasPort ? `Start API (port ${focusedProject.apiPort})` : 'Configure API'}
               >
-                <span className="icon">{status?.running ? '⏹' : '🔌'}</span>
-                {status?.running ? `API :${focusedProject.apiPort}` : hasPort ? 'Start API' : 'API'}
+                {status?.running ? '🟢' : '🔌'}
               </button>
             )
           }
           return null
         })()}
-        <button className="sidebar-btn" onClick={onOpenMakeProject}>
-          <span className="icon">+</span> Make Project
-        </button>
-        <button className="sidebar-btn" onClick={onOpenSettings}>
-          <span className="icon">⚙</span> Settings
-        </button>
-        <button className="sidebar-btn primary" onClick={onAddProject}>
-          <span className="icon">📁</span> Add Project
+        <button
+          className="action-icon-btn"
+          onClick={onOpenSettings}
+          tabIndex={-1}
+          title="Settings"
+        >
+          ⚙️
         </button>
       </div>
+      {voiceOutputEnabled && (
+        <div className="voice-options">
+          <div className="voice-slider-row">
+            <span className="voice-option-icon" title="Volume">🔊</span>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={volume}
+              onChange={(e) => setVolume(parseFloat(e.target.value))}
+              className="voice-slider"
+              title={`Volume: ${Math.round(volume * 100)}%`}
+            />
+          </div>
+          <div className="voice-slider-row">
+            <span className="voice-option-icon" title="Speed">⏩</span>
+            <input
+              type="range"
+              min="0.5"
+              max="2"
+              step="0.1"
+              value={speed}
+              onChange={(e) => setSpeed(parseFloat(e.target.value))}
+              className="voice-slider"
+              title={`Speed: ${speed.toFixed(1)}x`}
+            />
+          </div>
+          <label className="voice-option-checkbox" title="Skip to latest message instead of queuing">
+            <input
+              type="checkbox"
+              checked={skipOnNew}
+              onChange={(e) => setSkipOnNew(e.target.checked)}
+            />
+            <span>Skip to new</span>
+          </label>
+        </div>
+      )}
       <div
         className="sidebar-resize-handle"
         onMouseDown={handleMouseDown}
