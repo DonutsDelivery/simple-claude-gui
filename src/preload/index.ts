@@ -46,6 +46,26 @@ export interface ElectronAPI {
   beadsDelete: (cwd: string, taskId: string) => Promise<{ success: boolean; error?: string }>
   beadsStart: (cwd: string, taskId: string) => Promise<{ success: boolean; error?: string }>
 
+  // TTS instructions (CLAUDE.md)
+  ttsInstallInstructions: (projectPath: string) => Promise<{ success: boolean }>
+  ttsRemoveInstructions: (projectPath: string) => Promise<{ success: boolean }>
+
+  // Voice (STT/TTS)
+  voiceCheckWhisper: () => Promise<{ installed: boolean; models: string[]; currentModel: string | null }>
+  voiceInstallWhisper: (model: string) => Promise<{ success: boolean; error?: string }>
+  voiceTranscribe: (pcmData: Float32Array) => Promise<{ success: boolean; text?: string; error?: string }>
+  voiceSetWhisperModel: (model: string) => Promise<{ success: boolean }>
+  voiceCheckTTS: () => Promise<{ installed: boolean; engine: string | null; voices: string[]; currentVoice: string | null }>
+  voiceInstallPiper: () => Promise<{ success: boolean; error?: string }>
+  voiceInstallVoice: (voice: string) => Promise<{ success: boolean; error?: string }>
+  voiceSpeak: (text: string) => Promise<{ success: boolean; audioData?: string; error?: string }>
+  voiceStopSpeaking: () => Promise<{ success: boolean }>
+  voiceGetVoices: () => Promise<{ installed: string[]; all: Array<{ id: string; description: string; license: string; installed: boolean }> }>
+  voiceGetWhisperModels: () => Promise<{ installed: string[]; all: Array<{ id: string; size: number; installed: boolean }> }>
+  voiceSetVoice: (voice: string) => Promise<{ success: boolean }>
+  voiceGetSettings: () => Promise<any>
+  voiceApplySettings: (settings: any) => Promise<{ success: boolean }>
+
   // PTY
   spawnPty: (cwd: string, sessionId?: string, model?: string) => Promise<string>
   writePty: (id: string, data: string) => void
@@ -78,6 +98,9 @@ export interface ElectronAPI {
   windowMaximize: () => void
   windowClose: () => void
   windowIsMaximized: () => Promise<boolean>
+
+  // Debug logging
+  debugLog: (message: string) => void
 }
 
 const api: ElectronAPI = {
@@ -124,6 +147,26 @@ const api: ElectronAPI = {
   beadsComplete: (cwd, taskId) => ipcRenderer.invoke('beads:complete', { cwd, taskId }),
   beadsDelete: (cwd, taskId) => ipcRenderer.invoke('beads:delete', { cwd, taskId }),
   beadsStart: (cwd, taskId) => ipcRenderer.invoke('beads:start', { cwd, taskId }),
+
+  // TTS instructions (CLAUDE.md)
+  ttsInstallInstructions: (projectPath) => ipcRenderer.invoke('tts:installInstructions', projectPath),
+  ttsRemoveInstructions: (projectPath) => ipcRenderer.invoke('tts:removeInstructions', projectPath),
+
+  // Voice (STT/TTS)
+  voiceCheckWhisper: () => ipcRenderer.invoke('voice:checkWhisper'),
+  voiceInstallWhisper: (model) => ipcRenderer.invoke('voice:installWhisper', model),
+  voiceTranscribe: (pcmData) => ipcRenderer.invoke('voice:transcribe', pcmData),
+  voiceSetWhisperModel: (model) => ipcRenderer.invoke('voice:setWhisperModel', model),
+  voiceCheckTTS: () => ipcRenderer.invoke('voice:checkTTS'),
+  voiceInstallPiper: () => ipcRenderer.invoke('voice:installPiper'),
+  voiceInstallVoice: (voice) => ipcRenderer.invoke('voice:installVoice', voice),
+  voiceSpeak: (text) => ipcRenderer.invoke('voice:speak', text),
+  voiceStopSpeaking: () => ipcRenderer.invoke('voice:stopSpeaking'),
+  voiceGetVoices: () => ipcRenderer.invoke('voice:getVoices'),
+  voiceGetWhisperModels: () => ipcRenderer.invoke('voice:getWhisperModels'),
+  voiceSetVoice: (voice) => ipcRenderer.invoke('voice:setVoice', voice),
+  voiceGetSettings: () => ipcRenderer.invoke('voice:getSettings'),
+  voiceApplySettings: (settings) => ipcRenderer.invoke('voice:applySettings', settings),
 
   // PTY management
   spawnPty: (cwd, sessionId, model) => ipcRenderer.invoke('pty:spawn', { cwd, sessionId, model }),
@@ -174,7 +217,10 @@ const api: ElectronAPI = {
   windowMinimize: () => ipcRenderer.invoke('window:minimize'),
   windowMaximize: () => ipcRenderer.invoke('window:maximize'),
   windowClose: () => ipcRenderer.invoke('window:close'),
-  windowIsMaximized: () => ipcRenderer.invoke('window:isMaximized')
+  windowIsMaximized: () => ipcRenderer.invoke('window:isMaximized'),
+
+  // Debug logging
+  debugLog: (message) => ipcRenderer.send('debug:log', message)
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)

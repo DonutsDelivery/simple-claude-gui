@@ -1,6 +1,22 @@
 import React, { useState, useEffect } from 'react'
 import { themes, getThemeById, applyTheme, Theme } from '../themes'
 
+// Whisper models available
+const WHISPER_MODELS = [
+  { value: 'tiny.en', label: 'Tiny (75MB)', desc: 'Fastest, basic accuracy' },
+  { value: 'base.en', label: 'Base (147MB)', desc: 'Good balance' },
+  { value: 'small.en', label: 'Small (488MB)', desc: 'Better accuracy' },
+  { value: 'medium.en', label: 'Medium (1.5GB)', desc: 'High accuracy' },
+  { value: 'large-v3', label: 'Large (3GB)', desc: 'Best accuracy, multilingual' },
+]
+
+// Piper voices available
+const PIPER_VOICES = [
+  { value: 'en_US-libritts_r-medium', label: 'LibriTTS-R (US)', desc: 'Natural US English' },
+  { value: 'en_GB-jenny_dioco-medium', label: 'Jenny (UK)', desc: 'British English' },
+  { value: 'en_US-ryan-medium', label: 'Ryan (US)', desc: 'US English male' },
+]
+
 // Common tool patterns for quick selection
 const COMMON_TOOLS = [
   { label: 'Read files', value: 'Read' },
@@ -41,6 +57,14 @@ export function SettingsModal({ isOpen, onClose, onThemeChange }: SettingsModalP
   const [permissionMode, setPermissionMode] = useState('default')
   const [customTool, setCustomTool] = useState('')
 
+  // Voice settings
+  const [whisperStatus, setWhisperStatus] = useState<{ installed: boolean; models: string[]; currentModel: string | null }>({ installed: false, models: [], currentModel: null })
+  const [ttsStatus, setTtsStatus] = useState<{ installed: boolean; voices: string[]; currentVoice: string | null }>({ installed: false, voices: [], currentVoice: null })
+  const [selectedWhisperModel, setSelectedWhisperModel] = useState('base.en')
+  const [selectedVoice, setSelectedVoice] = useState('en_US-libritts_r-medium')
+  const [installingModel, setInstallingModel] = useState<string | null>(null)
+  const [installingVoice, setInstallingVoice] = useState<string | null>(null)
+
   useEffect(() => {
     if (isOpen) {
       window.electronAPI.getSettings().then((settings) => {
@@ -49,6 +73,10 @@ export function SettingsModal({ isOpen, onClose, onThemeChange }: SettingsModalP
         setAutoAcceptTools(settings.autoAcceptTools || [])
         setPermissionMode(settings.permissionMode || 'default')
       })
+
+      // Load voice status
+      window.electronAPI.voiceCheckWhisper?.().then(setWhisperStatus).catch(() => {})
+      window.electronAPI.voiceCheckTTS?.().then(setTtsStatus).catch(() => {})
     }
   }, [isOpen])
 
@@ -89,6 +117,34 @@ export function SettingsModal({ isOpen, onClose, onThemeChange }: SettingsModalP
 
   const removeCustomTool = (tool: string) => {
     setAutoAcceptTools(autoAcceptTools.filter(t => t !== tool))
+  }
+
+  const handleInstallWhisperModel = async (model: string) => {
+    setInstallingModel(model)
+    try {
+      await window.electronAPI.voiceInstallWhisper?.(model)
+      const status = await window.electronAPI.voiceCheckWhisper?.()
+      if (status) setWhisperStatus(status)
+    } catch (e) {
+      console.error('Failed to install Whisper model:', e)
+    }
+    setInstallingModel(null)
+  }
+
+  const handleInstallVoice = async (voice: string) => {
+    setInstallingVoice(voice)
+    try {
+      // Install Piper if not installed
+      if (!ttsStatus.installed) {
+        await window.electronAPI.voiceInstallPiper?.()
+      }
+      await window.electronAPI.voiceInstallVoice?.(voice)
+      const status = await window.electronAPI.voiceCheckTTS?.()
+      if (status) setTtsStatus(status)
+    } catch (e) {
+      console.error('Failed to install voice:', e)
+    }
+    setInstallingVoice(null)
   }
 
   if (!isOpen) return null
@@ -216,6 +272,70 @@ export function SettingsModal({ isOpen, onClose, onThemeChange }: SettingsModalP
                   <span className="mode-desc">{mode.desc}</span>
                 </label>
               ))}
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label>Voice Input (Speech-to-Text)</label>
+            <p className="form-hint">
+              Whisper models for transcribing your voice. Larger = more accurate but slower.
+            </p>
+            <div className="voice-options">
+              {WHISPER_MODELS.map((model) => {
+                const isInstalled = whisperStatus.models.includes(model.value)
+                const isInstalling = installingModel === model.value
+                return (
+                  <div key={model.value} className={`voice-option ${isInstalled ? 'installed' : ''}`}>
+                    <div className="voice-info">
+                      <span className="voice-label">{model.label}</span>
+                      <span className="voice-desc">{model.desc}</span>
+                    </div>
+                    {isInstalled ? (
+                      <span className="voice-status installed">Installed</span>
+                    ) : (
+                      <button
+                        className="voice-install-btn"
+                        onClick={() => handleInstallWhisperModel(model.value)}
+                        disabled={isInstalling}
+                      >
+                        {isInstalling ? 'Installing...' : 'Install'}
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label>Voice Output (Text-to-Speech)</label>
+            <p className="form-hint">
+              Piper voices for Claude to speak responses aloud.
+            </p>
+            <div className="voice-options">
+              {PIPER_VOICES.map((voice) => {
+                const isInstalled = ttsStatus.voices.includes(voice.value)
+                const isInstalling = installingVoice === voice.value
+                return (
+                  <div key={voice.value} className={`voice-option ${isInstalled ? 'installed' : ''}`}>
+                    <div className="voice-info">
+                      <span className="voice-label">{voice.label}</span>
+                      <span className="voice-desc">{voice.desc}</span>
+                    </div>
+                    {isInstalled ? (
+                      <span className="voice-status installed">Installed</span>
+                    ) : (
+                      <button
+                        className="voice-install-btn"
+                        onClick={() => handleInstallVoice(voice.value)}
+                        disabled={isInstalling}
+                      >
+                        {isInstalling ? 'Installing...' : 'Install'}
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
         </div>

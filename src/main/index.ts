@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
-import { mkdirSync, existsSync, writeFileSync } from 'fs'
+import { mkdirSync, existsSync, writeFileSync, appendFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { spawn, exec } from 'child_process'
 import { promisify } from 'util'
@@ -32,6 +32,7 @@ import {
   getBeadsBinaryPath
 } from './portable-deps'
 import { initUpdater } from './updater'
+import { voiceManager, WHISPER_MODELS, PIPER_VOICES, WhisperModelName, PiperVoiceName } from './voice-manager'
 
 // Single instance lock - prevent multiple instances
 const gotTheLock = app.requestSingleInstanceLock()
@@ -321,6 +322,12 @@ ipcMain.on('pty:resize', (_, { id, cols, rows }: { id: string; cols: number; row
 ipcMain.on('pty:kill', (_, id: string) => {
   ptyToProject.delete(id)
   ptyManager.kill(id)
+})
+
+// Debug logging to file
+const debugLogPath = '/tmp/tts-debug.log'
+ipcMain.on('debug:log', (_, message: string) => {
+  appendFileSync(debugLogPath, `${new Date().toISOString()} ${message}\n`)
 })
 
 // API Server management
@@ -749,6 +756,193 @@ ipcMain.handle('beads:install', async () => {
     beadsAvailable = null
     return { success: false, error: e.message }
   }
+})
+
+// ==================== VOICE (STT/TTS) ====================
+
+// TTS instructions to append to CLAUDE.md - tells Claude to wrap speakable prose in <tts> tags
+const TTS_INSTRUCTIONS_START = '\n\n<!-- TTS_VOICE_OUTPUT_START -->'
+const TTS_INSTRUCTIONS_END = '<!-- TTS_VOICE_OUTPUT_END -->\n'
+const TTS_INSTRUCTIONS = `${TTS_INSTRUCTIONS_START}
+## Voice Output (TTS)
+
+When responding, wrap your natural language prose in \`<tts>...\</tts>\` tags for text-to-speech.
+
+Rules:
+- ONLY wrap conversational prose meant to be spoken aloud
+- Do NOT wrap: code, file paths, commands, tool output, URLs, lists, errors
+- Keep tags on same line as text (no line breaks inside)
+
+Examples (using brackets to avoid parsing):
+✓ [tts]I'll help you fix that bug.[/tts]
+✓ [tts]The tests are passing.[/tts] Here's what changed:
+✗ [tts]src/Header.tsx[/tts]  (file path - don't wrap)
+✗ [tts]npm install[/tts]  (command - don't wrap)
+${TTS_INSTRUCTIONS_END}`
+
+// Install TTS instructions by appending to CLAUDE.md
+function installTTSInstructions(projectPath: string): boolean {
+  try {
+    const claudeDir = join(projectPath, '.claude')
+    const claudeMdPath = join(claudeDir, 'CLAUDE.md')
+
+    // Create .claude directory if it doesn't exist
+    if (!existsSync(claudeDir)) {
+      mkdirSync(claudeDir, { recursive: true })
+    }
+
+    // Read existing CLAUDE.md or start fresh
+    let content = ''
+    if (existsSync(claudeMdPath)) {
+      content = require('fs').readFileSync(claudeMdPath, 'utf8')
+      // Check if TTS instructions already exist
+      if (content.includes(TTS_INSTRUCTIONS_START)) {
+        console.log('TTS instructions already present in:', claudeMdPath)
+        return true
+      }
+    }
+
+    // Append TTS instructions
+    content += TTS_INSTRUCTIONS
+    writeFileSync(claudeMdPath, content)
+    console.log('Added TTS instructions to:', claudeMdPath)
+    return true
+  } catch (e) {
+    console.error('Failed to install TTS instructions:', e)
+    return false
+  }
+}
+
+// Remove TTS instructions from CLAUDE.md
+function removeTTSInstructions(projectPath: string): boolean {
+  try {
+    const claudeMdPath = join(projectPath, '.claude', 'CLAUDE.md')
+    if (!existsSync(claudeMdPath)) return true
+
+    let content = require('fs').readFileSync(claudeMdPath, 'utf8')
+    const startIdx = content.indexOf(TTS_INSTRUCTIONS_START)
+    const endIdx = content.indexOf(TTS_INSTRUCTIONS_END)
+
+    if (startIdx !== -1 && endIdx !== -1) {
+      content = content.slice(0, startIdx) + content.slice(endIdx + TTS_INSTRUCTIONS_END.length)
+      // Clean up trailing whitespace
+      content = content.trimEnd() + '\n'
+      writeFileSync(claudeMdPath, content)
+      console.log('Removed TTS instructions from:', claudeMdPath)
+    }
+    return true
+  } catch (e) {
+    console.error('Failed to remove TTS instructions:', e)
+    return false
+  }
+}
+
+// Install/remove TTS instructions in a project
+ipcMain.handle('tts:installInstructions', (_, projectPath: string) => {
+  return { success: installTTSInstructions(projectPath) }
+})
+
+ipcMain.handle('tts:removeInstructions', (_, projectPath: string) => {
+  return { success: removeTTSInstructions(projectPath) }
+})
+
+// Check Whisper installation status
+ipcMain.handle('voice:checkWhisper', async () => {
+  return voiceManager.checkWhisper()
+})
+
+// Install a Whisper model
+ipcMain.handle('voice:installWhisper', async (_, model: WhisperModelName) => {
+  return voiceManager.downloadWhisperModel(model, (status, percent) => {
+    if (mainWindow) {
+      mainWindow.webContents.send('install:progress', { type: 'whisper', status, percent })
+    }
+  })
+})
+
+// Transcribe audio using Whisper
+ipcMain.handle('voice:transcribe', async (_, pcmData: Float32Array) => {
+  return voiceManager.transcribe(pcmData)
+})
+
+// Set Whisper model
+ipcMain.handle('voice:setWhisperModel', async (_, model: WhisperModelName) => {
+  voiceManager.setWhisperModel(model)
+  return { success: true }
+})
+
+// Check TTS installation status
+ipcMain.handle('voice:checkTTS', async () => {
+  return voiceManager.checkTTS()
+})
+
+// Install Piper TTS engine
+ipcMain.handle('voice:installPiper', async () => {
+  return voiceManager.installPiper((status, percent) => {
+    if (mainWindow) {
+      mainWindow.webContents.send('install:progress', { type: 'piper', status, percent })
+    }
+  })
+})
+
+// Install a Piper voice
+ipcMain.handle('voice:installVoice', async (_, voice: PiperVoiceName) => {
+  return voiceManager.downloadPiperVoice(voice, (status, percent) => {
+    if (mainWindow) {
+      mainWindow.webContents.send('install:progress', { type: 'piper-voice', status, percent })
+    }
+  })
+})
+
+// Speak text using TTS
+ipcMain.handle('voice:speak', async (_, text: string) => {
+  return voiceManager.speak(text)
+})
+
+// Stop speaking
+ipcMain.handle('voice:stopSpeaking', async () => {
+  voiceManager.stopSpeaking()
+  return { success: true }
+})
+
+// Get available voices
+ipcMain.handle('voice:getVoices', async () => {
+  const installed = voiceManager.getInstalledPiperVoices()
+  const all = Object.entries(PIPER_VOICES).map(([id, info]) => ({
+    id,
+    description: info.description,
+    license: info.license,
+    installed: installed.includes(id)
+  }))
+  return { installed, all }
+})
+
+// Get available Whisper models
+ipcMain.handle('voice:getWhisperModels', async () => {
+  const installedModels = voiceManager.getInstalledWhisperModels()
+  const all = Object.entries(WHISPER_MODELS).map(([id, info]) => ({
+    id,
+    size: info.size,
+    installed: installedModels.includes(id as WhisperModelName)
+  }))
+  return { installed: installedModels, all }
+})
+
+// Set TTS voice
+ipcMain.handle('voice:setVoice', async (_, voice: string) => {
+  voiceManager.setTTSVoice(voice)
+  return { success: true }
+})
+
+// Get voice settings
+ipcMain.handle('voice:getSettings', async () => {
+  return voiceManager.getSettings()
+})
+
+// Apply voice settings
+ipcMain.handle('voice:applySettings', async (_, settings: any) => {
+  voiceManager.applySettings(settings)
+  return { success: true }
 })
 
 // Clipboard image reading and saving (using Electron's native clipboard)

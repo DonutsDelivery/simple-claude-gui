@@ -8,6 +8,7 @@ import { SettingsModal } from './components/SettingsModal'
 import { MakeProjectModal } from './components/MakeProjectModal'
 import { useWorkspaceStore, OpenTab } from './stores/workspace'
 import { Theme, getThemeById, applyTheme, themes } from './themes'
+import { useVoice } from './contexts/VoiceContext'
 
 declare global {
   interface Window {
@@ -57,6 +58,9 @@ declare global {
       onUpdaterStatus: (callback: (data: { status: string; version?: string; progress?: number; error?: string }) => void) => () => void
       // Clipboard
       readClipboardImage: () => Promise<{ success: boolean; hasImage?: boolean; path?: string; error?: string }>
+      // TTS instructions
+      ttsInstallInstructions?: (projectPath: string) => Promise<{ success: boolean }>
+      ttsRemoveInstructions?: (projectPath: string) => Promise<{ success: boolean }>
       // Window controls
       windowMinimize: () => void
       windowMaximize: () => void
@@ -81,6 +85,14 @@ function App() {
     setActiveTab,
     clearTabs
   } = useWorkspaceStore()
+
+  const { voiceOutputEnabled } = useVoice()
+  const voiceOutputEnabledRef = useRef(voiceOutputEnabled)
+
+  // Keep ref in sync for callbacks
+  useEffect(() => {
+    voiceOutputEnabledRef.current = voiceOutputEnabled
+  }, [voiceOutputEnabled])
 
   const [loading, setLoading] = useState(true)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -141,6 +153,10 @@ function App() {
           if (workspace.projects.length > 0) {
             hadProjectsRef.current = true
           }
+          // Install TTS instructions for all existing projects
+          for (const project of workspace.projects) {
+            await window.electronAPI.ttsInstallInstructions?.(project.path)
+          }
         }
 
         // Restore previously open tabs (only if not already open)
@@ -159,6 +175,9 @@ function App() {
             }
 
             try {
+              // Always install TTS instructions so Claude uses <tts> tags
+              await window.electronAPI.ttsInstallInstructions?.(savedTab.projectPath)
+
               const ptyId = await window.electronAPI.spawnPty(
                 savedTab.projectPath,
                 savedTab.sessionId
@@ -285,6 +304,9 @@ function App() {
       const title = `${projectName} - API${modelLabel}${autoClose ? ' (auto-close)' : ''}`
 
       try {
+        // Always install TTS instructions so Claude uses <tts> tags
+        await window.electronAPI.ttsInstallInstructions?.(projectPath)
+
         const ptyId = await window.electronAPI.spawnPty(projectPath, undefined, model)
         addTab({
           id: ptyId,
@@ -306,6 +328,8 @@ function App() {
       // Split on both / and \ for cross-platform support
       const name = path.split(/[/\\]/).pop() || path
       addProject({ path, name })
+      // Install TTS instructions for the new project
+      await window.electronAPI.ttsInstallInstructions?.(path)
     }
   }, [addProject])
 
@@ -324,6 +348,9 @@ function App() {
     const title = slug ? `${projectName} - ${slug}` : `${projectName} - New`
 
     try {
+      // Always install TTS instructions so Claude uses <tts> tags
+      await window.electronAPI.ttsInstallInstructions?.(projectPath)
+
       const ptyId = await window.electronAPI.spawnPty(projectPath, sessionId)
       addTab({
         id: ptyId,

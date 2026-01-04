@@ -3,6 +3,7 @@ import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { Theme } from '../themes'
+import { useVoice } from '../contexts/VoiceContext'
 
 // Global buffer to persist terminal data across HMR remounts
 // Use window to persist across module re-execution during HMR
@@ -71,11 +72,95 @@ interface TerminalProps {
   onFocus?: () => void
 }
 
+// Strip ANSI escape codes and terminal control sequences from text
+function stripAnsi(text: string): string {
+  return text
+    .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')  // CSI sequences
+    .replace(/\x1b\][^\x07]*\x07/g, '')      // OSC sequences (title, etc)
+    .replace(/\x1b\[\?[0-9;]*[a-zA-Z]/g, '') // Private sequences
+    .replace(/\x1b[PX^_][^\x1b]*\x1b\\/g, '') // String sequences
+    .replace(/[\x00-\x1f\x7f]/g, '')          // Control chars
+}
+
+// Detect if text is Claude's prose response (not tool output, code, or status)
+function isClaudeProseResponse(text: string): boolean {
+  const trimmed = text.trim()
+
+  // Skip empty or very short text
+  if (trimmed.length < 10) return false
+
+  // Positive signal: ● or • bullet indicates Claude's prose response
+  // But skip if it's a tool call like "● Bash(...)" or "● Read(...)"
+  const hasBullet = /^[●•]/.test(trimmed)
+  if (hasBullet) {
+    // Skip tool calls: ● ToolName(...)
+    if (/^[●•]\s*(Bash|Read|Write|Edit|Glob|Grep|Task|LSP|WebFetch|WebSearch|Update|NotebookEdit)\s*\(/.test(trimmed)) {
+      return false
+    }
+    // It's prose
+    return true
+  }
+
+  // WITHOUT a bullet, be very strict - most things are NOT prose
+
+  // Skip anything with box-drawing or UI characters
+  if (/[└├│┌┐┘┬┴┼╭╮╯╰⎿]/.test(text)) return false
+
+  // Skip diff/edit output patterns
+  if (/Added|removed|lines|line \d|\.tsx?\)|\.jsx?\)/.test(text)) return false
+
+  // Skip Claude Code status bar patterns
+  if (/Ideating|Thinking|Working|esc to interrupt|tokens|Reticulating/.test(text)) return false
+  if (/Tip:|Model:|Session:|Cost:|Context|Cached:|Total:|Ctx:|In:|Out:/.test(text)) return false
+  if (/v\d+\.\d+/.test(text)) return false
+
+  // Skip spinner characters
+  if (/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏⣾⣽⣻⢿⡿⣟⣯⣷·✶]/.test(text)) return false
+
+  // Skip tool indicators
+  if (/Read|Write|Edit|Bash|Glob|Grep|Task|LSP|WebFetch|WebSearch|Update|NotebookEdit/.test(text)) return false
+
+  // Skip anything that looks like code
+  if (/[{}()\[\];=`]/.test(text)) return false
+  if (/^\s*(import|export|const|let|var|function|class|def |if |for |while |return |async |await |\$|>>>|#!|\/\/)/.test(text)) return false
+
+  // Skip file paths and extensions
+  if (/\.(ts|tsx|js|jsx|py|rs|go|css|html|json|md|yml|yaml)/.test(text)) return false
+
+  // Skip line numbers
+  if (/^\s*\d+\s*[+\-]?\s/.test(text)) return false
+
+  // Must be mostly alphabetic words (natural language)
+  const words = trimmed.split(/\s+/)
+  const alphaWords = words.filter(w => /^[a-zA-Z]+$/.test(w))
+  if (alphaWords.length < words.length * 0.5) return false
+
+  return true
+}
+
 export function Terminal({ ptyId, isActive, theme, onFocus }: TerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<XTerm | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
   const userScrolledUpRef = useRef(false)
+
+  // Voice TTS integration
+  const { voiceOutputEnabled, speakText } = useVoice()
+  const voiceOutputEnabledRef = useRef(voiceOutputEnabled)
+  const isActiveRef = useRef(isActive)
+  const spokenContentRef = useRef<Set<string>>(new Set())  // Track what we've already spoken
+  const silentModeRef = useRef(false)  // Only enable when there's buffered content to replay
+  const silentModeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const ttsBufferRef = useRef('')  // Buffer for accumulating TTS tags across chunks
+
+  // Keep refs in sync
+  useEffect(() => {
+    voiceOutputEnabledRef.current = voiceOutputEnabled
+  }, [voiceOutputEnabled])
+
+  useEffect(() => {
+    isActiveRef.current = isActive
+  }, [isActive])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -131,11 +216,32 @@ export function Terminal({ ptyId, isActive, theme, onFocus }: TerminalProps) {
     // Replay buffered content on mount (for HMR recovery)
     const buffer = terminalBuffers.get(ptyId)!
     if (buffer.length > 0) {
+      // Enable silent mode while replaying buffered content
+      silentModeRef.current = true
+
+      // Pre-populate spoken content set from buffered data to prevent re-speaking old content
+      for (const chunk of buffer) {
+        const cleanChunk = stripAnsi(chunk)
+        const tagRegex = /«tts»([\s\S]*?)«\/tts»/g
+        let match
+        while ((match = tagRegex.exec(cleanChunk)) !== null) {
+          const content = match[1].trim()
+          if (content.length > 3) {
+            spokenContentRef.current.add(content)
+          }
+        }
+      }
+
       // Write all buffered data to restore terminal state
       for (const chunk of buffer) {
         terminal.write(chunk)
       }
       terminal.scrollToBottom()
+
+      // Exit silent mode after buffer replay settles
+      silentModeTimeoutRef.current = setTimeout(() => {
+        silentModeRef.current = false
+      }, 500)
     }
 
     // Helper to check if terminal is at bottom
@@ -246,6 +352,7 @@ export function Terminal({ ptyId, isActive, theme, onFocus }: TerminalProps) {
 
     // Handle PTY output - always scroll to bottom unless user explicitly scrolled up
     let firstData = true
+
     const cleanupData = window.electronAPI.onPtyData(ptyId, (data) => {
       // Store data in buffer for HMR recovery
       const buf = getTerminalBuffers().get(ptyId)
@@ -257,7 +364,59 @@ export function Terminal({ ptyId, isActive, theme, onFocus }: TerminalProps) {
         }
       }
 
-      terminal.write(data)
+      // Always strip «tts» markers from display (Claude always uses them now)
+      let displayData = data.replace(/«\/?tts»/g, '')
+
+      // TTS: Buffer chunks and extract complete tags (tags may span multiple chunks)
+      const cleanChunk = stripAnsi(data)
+
+      ttsBufferRef.current += cleanChunk
+
+      // Extract all complete «tts»...«/tts» markers from buffer
+      const tagRegex = /«tts»([\s\S]*?)«\/tts»/g
+      let match
+      let lastIndex = 0
+
+      while ((match = tagRegex.exec(ttsBufferRef.current)) !== null) {
+        lastIndex = match.index + match[0].length
+        const content = match[1].trim()
+
+        // Skip if content looks like code (has brackets, semicolons, etc.)
+        const looksLikeCode = /[{}()\[\];=`$]|^\s*\/\/|^\s*#|function\s|const\s|let\s|var\s/.test(content)
+        // Skip if content is too short or has weird characters
+        const looksLikeProse = content.length > 5 && /^[a-zA-Z]/.test(content) && !looksLikeCode
+
+        if (looksLikeProse && !spokenContentRef.current.has(content)) {
+          spokenContentRef.current.add(content)
+          // Only speak if voice enabled, tab active, and not in silent mode
+          if (voiceOutputEnabledRef.current && isActiveRef.current && !silentModeRef.current) {
+            speakText(content)
+          }
+        }
+      }
+
+      // Keep only the part after the last complete tag (may contain partial tag)
+      if (lastIndex > 0) {
+        ttsBufferRef.current = ttsBufferRef.current.substring(lastIndex)
+      }
+
+      // If buffer has no opening marker, clear it to prevent unbounded growth
+      if (!ttsBufferRef.current.includes('«tts')) {
+        ttsBufferRef.current = ''
+      }
+
+      // Limit buffer size to prevent memory issues (keep last 2000 chars if partial tag)
+      if (ttsBufferRef.current.length > 2000) {
+        ttsBufferRef.current = ttsBufferRef.current.substring(ttsBufferRef.current.length - 2000)
+      }
+
+      // Limit spoken set size to prevent memory bloat (keep last 1000 entries)
+      if (spokenContentRef.current.size > 1000) {
+        const entries = Array.from(spokenContentRef.current)
+        spokenContentRef.current = new Set(entries.slice(-500))
+      }
+
+      terminal.write(displayData)
 
       // Always scroll to bottom unless user has scrolled up
       if (!userScrolledUpRef.current) {
@@ -326,6 +485,7 @@ export function Terminal({ ptyId, isActive, theme, onFocus }: TerminalProps) {
       cleanupData()
       cleanupExit()
       if (resizeTimeout) clearTimeout(resizeTimeout)
+      if (silentModeTimeoutRef.current) clearTimeout(silentModeTimeoutRef.current)
       resizeObserver.disconnect()
       terminal.dispose()
     }
