@@ -298,8 +298,7 @@ export function VoiceBrowserModal({ isOpen, onClose, onVoiceSelect }: VoiceBrows
 
     // Stop current preview if playing
     if (previewAudio) {
-      previewAudio.pause()
-      previewAudio.src = ''
+      ;(previewAudio as any)._stop?.() || (previewAudio.pause(), previewAudio.src = '')
       setPreviewAudio(null)
     }
 
@@ -316,15 +315,28 @@ export function VoiceBrowserModal({ isOpen, onClose, onVoiceSelect }: VoiceBrows
     }
 
     const audio = new Audio(sampleUrl)
+    let intentionallyStopped = false
+
     audio.onended = () => {
       setPlayingPreview(null)
       setPreviewAudio(null)
     }
     audio.onerror = () => {
-      setPlayingPreview(null)
-      setPreviewAudio(null)
-      setError('Failed to load audio preview')
+      // Don't show error if we intentionally stopped (setting src = '' triggers error)
+      if (!intentionallyStopped) {
+        setPlayingPreview(null)
+        setPreviewAudio(null)
+        setError('Failed to load audio preview')
+      }
     }
+
+    // Mark as intentionally stopped when we clean up
+    ;(audio as any)._stop = () => {
+      intentionallyStopped = true
+      audio.pause()
+      audio.src = ''
+    }
+
     audio.play()
     setPreviewAudio(audio)
     setPlayingPreview(voiceKey)
@@ -333,8 +345,7 @@ export function VoiceBrowserModal({ isOpen, onClose, onVoiceSelect }: VoiceBrows
   // Stop preview when modal closes
   React.useEffect(() => {
     if (!isOpen && previewAudio) {
-      previewAudio.pause()
-      previewAudio.src = ''
+      ;(previewAudio as any)._stop?.() || (previewAudio.pause(), previewAudio.src = '')
       setPreviewAudio(null)
       setPlayingPreview(null)
     }
