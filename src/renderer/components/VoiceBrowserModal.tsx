@@ -556,15 +556,21 @@ export function VoiceBrowserModal({ isOpen, onClose, onVoiceSelect }: VoiceBrows
         {showCreateXtts && (
           <div className="voice-create-dialog">
             <div className="voice-create-content">
-              <h3>Create XTTS Voice Clone</h3>
+              <div className="voice-create-header">
+                <h3>Create XTTS Voice Clone</h3>
+                <button className="modal-close" onClick={() => setShowCreateXtts(false)}>&times;</button>
+              </div>
               {!xttsStatus.installed ? (
                 <div className="xtts-install-prompt">
                   <p>XTTS requires Python and the TTS library to be installed.</p>
-                  {xttsStatus.error && <p className="error-text">{xttsStatus.error}</p>}
+                  {xttsStatus.error && <p className="error-text selectable">{xttsStatus.error}</p>}
                   <button className="btn-primary" onClick={handleInstallXtts} disabled={installingXtts}>
                     {installingXtts ? 'Installing...' : 'Install XTTS Dependencies'}
                   </button>
                   <p className="note-text">This will install the TTS library via pip (~2GB)</p>
+                  <button className="btn-secondary" onClick={() => setShowCreateXtts(false)} style={{ marginTop: 12 }}>
+                    Cancel
+                  </button>
                 </div>
               ) : (
                 <>

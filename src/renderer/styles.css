@@ -1579,10 +1579,28 @@ html, body, #root {
   max-width: 90%;
 }
 
+.voice-create-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-lg);
+}
+
+.voice-create-header h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 16px;
+}
+
 .voice-create-content h3 {
   margin-bottom: var(--space-lg);
   color: var(--text-primary);
   font-size: 16px;
+}
+
+.selectable {
+  user-select: text;
+  cursor: text;
 }
 
 .xtts-install-prompt {
@@ -1596,6 +1614,7 @@ html, body, #root {
 
 .xtts-install-prompt .error-text {
   color: #ef4444;
+  word-break: break-word;
 }
 
 .xtts-install-prompt .note-text {
