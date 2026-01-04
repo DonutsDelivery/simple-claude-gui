@@ -1433,6 +1433,33 @@ html, body, #root {
   text-align: right;
 }
 
+.voice-col-preview {
+  flex: 0.8;
+  text-align: center;
+}
+
+.voice-preview-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--fg);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 8px;
+  transition: all 0.2s;
+}
+
+.voice-preview-btn:hover {
+  background: var(--bg-lighter);
+  border-color: var(--accent);
+}
+
+.voice-preview-btn.playing {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+
 .voice-col-action {
   flex: 1.5;
   text-align: right;

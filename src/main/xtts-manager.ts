@@ -6,12 +6,27 @@ import { promisify } from 'util'
 import { isWindows } from './platform'
 
 const execAsync = promisify(exec)
+import * as https from 'https'
 
 // Directory structure
 const depsDir = path.join(app.getPath('userData'), 'deps')
 const xttsDir = path.join(depsDir, 'xtts')
 const xttsVoicesDir = path.join(xttsDir, 'voices')
 const xttsScriptPath = path.join(xttsDir, 'xtts_helper.py')
+
+// Hugging Face XTTS-v2 sample voices
+const XTTS_HF_BASE = 'https://huggingface.co/coqui/XTTS-v2/resolve/main/samples'
+
+export const XTTS_SAMPLE_VOICES = [
+  { id: 'xtts-en-sample', name: 'English Sample', language: 'en', file: 'en_sample.wav' },
+  { id: 'xtts-de-sample', name: 'German Sample', language: 'de', file: 'de_sample.wav' },
+  { id: 'xtts-es-sample', name: 'Spanish Sample', language: 'es', file: 'es_sample.wav' },
+  { id: 'xtts-fr-sample', name: 'French Sample', language: 'fr', file: 'fr_sample.wav' },
+  { id: 'xtts-ja-sample', name: 'Japanese Sample', language: 'ja', file: 'ja-sample.wav' },
+  { id: 'xtts-pt-sample', name: 'Portuguese Sample', language: 'pt', file: 'pt_sample.wav' },
+  { id: 'xtts-tr-sample', name: 'Turkish Sample', language: 'tr', file: 'tr_sample.wav' },
+  { id: 'xtts-zh-sample', name: 'Chinese Sample', language: 'zh-cn', file: 'zh-cn-sample.wav' }
+] as const
 
 // XTTS supported languages
 export const XTTS_LANGUAGES = [
@@ -410,6 +425,142 @@ class XTTSManager {
 
   getVoicesDir(): string {
     return xttsVoicesDir
+  }
+
+  // Get available sample voices from Hugging Face
+  getSampleVoices(): typeof XTTS_SAMPLE_VOICES {
+    return XTTS_SAMPLE_VOICES
+  }
+
+  // Download a sample voice from Hugging Face
+  async downloadSampleVoice(
+    sampleId: string,
+    onProgress?: (status: string, percent?: number) => void
+  ): Promise<{ success: boolean; voiceId?: string; error?: string }> {
+    const sample = XTTS_SAMPLE_VOICES.find(s => s.id === sampleId)
+    if (!sample) {
+      return { success: false, error: `Sample voice "${sampleId}" not found` }
+    }
+
+    try {
+      ensureDir(xttsVoicesDir)
+
+      const voiceDir = path.join(xttsVoicesDir, sample.id)
+      ensureDir(voiceDir)
+
+      const referencePath = path.join(voiceDir, 'reference.wav')
+      const url = `${XTTS_HF_BASE}/${sample.file}`
+
+      onProgress?.(`Downloading ${sample.name}...`, 0)
+
+      await new Promise<void>((resolve, reject) => {
+        const file = fs.createWriteStream(referencePath)
+
+        const request = https.get(url, (response) => {
+          // Handle redirects
+          if (response.statusCode && [301, 302, 307, 308].includes(response.statusCode)) {
+            file.close()
+            if (fs.existsSync(referencePath)) fs.unlinkSync(referencePath)
+            const location = response.headers.location
+            if (!location) {
+              reject(new Error('Redirect with no location header'))
+              return
+            }
+            const redirectUrl = location.startsWith('http') ? location : new URL(location, url).toString()
+
+            // Follow redirect
+            const redirectReq = https.get(redirectUrl, (redirectRes) => {
+              if (redirectRes.statusCode !== 200) {
+                file.close()
+                reject(new Error(`Download failed with status ${redirectRes.statusCode}`))
+                return
+              }
+
+              const file2 = fs.createWriteStream(referencePath)
+              const total = parseInt(redirectRes.headers['content-length'] || '0', 10)
+              let downloaded = 0
+
+              redirectRes.on('data', (chunk) => {
+                downloaded += chunk.length
+                if (total > 0) {
+                  onProgress?.(`Downloading ${sample.name}...`, Math.round((downloaded / total) * 100))
+                }
+              })
+
+              redirectRes.pipe(file2)
+              file2.on('finish', () => {
+                file2.close()
+                resolve()
+              })
+              file2.on('error', (err) => {
+                file2.close()
+                if (fs.existsSync(referencePath)) fs.unlinkSync(referencePath)
+                reject(err)
+              })
+            })
+            redirectReq.on('error', reject)
+            return
+          }
+
+          if (response.statusCode !== 200) {
+            file.close()
+            reject(new Error(`Download failed with status ${response.statusCode}`))
+            return
+          }
+
+          const total = parseInt(response.headers['content-length'] || '0', 10)
+          let downloaded = 0
+
+          response.on('data', (chunk) => {
+            downloaded += chunk.length
+            if (total > 0) {
+              onProgress?.(`Downloading ${sample.name}...`, Math.round((downloaded / total) * 100))
+            }
+          })
+
+          response.pipe(file)
+          file.on('finish', () => {
+            file.close()
+            resolve()
+          })
+          file.on('error', (err) => {
+            file.close()
+            if (fs.existsSync(referencePath)) fs.unlinkSync(referencePath)
+            reject(err)
+          })
+        })
+
+        request.on('error', (err) => {
+          file.close()
+          if (fs.existsSync(referencePath)) fs.unlinkSync(referencePath)
+          reject(err)
+        })
+      })
+
+      // Save metadata
+      const metadata: XTTSVoice = {
+        id: sample.id,
+        name: sample.name,
+        language: sample.language as XTTSLanguage,
+        referencePath,
+        createdAt: Date.now()
+      }
+      fs.writeFileSync(
+        path.join(voiceDir, 'metadata.json'),
+        JSON.stringify(metadata, null, 2)
+      )
+
+      onProgress?.('Voice downloaded successfully', 100)
+      return { success: true, voiceId: sample.id }
+    } catch (e: any) {
+      return { success: false, error: e.message }
+    }
+  }
+
+  // Check if a sample voice is installed
+  isSampleVoiceInstalled(sampleId: string): boolean {
+    const voiceDir = path.join(xttsVoicesDir, sampleId)
+    return fs.existsSync(path.join(voiceDir, 'metadata.json'))
   }
 }
 

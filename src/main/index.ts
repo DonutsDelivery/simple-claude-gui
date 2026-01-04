@@ -33,7 +33,7 @@ import {
 } from './portable-deps'
 import { initUpdater } from './updater'
 import { voiceManager, WHISPER_MODELS, PIPER_VOICES, WhisperModelName, PiperVoiceName } from './voice-manager'
-import { xttsManager, XTTS_LANGUAGES } from './xtts-manager'
+import { xttsManager, XTTS_LANGUAGES, XTTS_SAMPLE_VOICES } from './xtts-manager'
 
 // Debug mode - enables manual refresh button and disables hot-reload
 const isDebugMode = process.argv.includes('--debug') || process.env.DEBUG_MODE === '1'
@@ -1057,6 +1057,17 @@ ipcMain.handle('xtts:selectAudio', async () => {
 
 ipcMain.handle('xtts:getLanguages', async () => {
   return XTTS_LANGUAGES
+})
+
+ipcMain.handle('xtts:getSampleVoices', async () => {
+  return XTTS_SAMPLE_VOICES.map(s => ({
+    ...s,
+    installed: xttsManager.isSampleVoiceInstalled(s.id)
+  }))
+})
+
+ipcMain.handle('xtts:downloadSampleVoice', async (_, sampleId: string) => {
+  return xttsManager.downloadSampleVoice(sampleId)
 })
 
 // Clipboard image reading and saving (using Electron's native clipboard)

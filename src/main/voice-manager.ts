@@ -167,11 +167,17 @@ function downloadFile(url: string, destPath: string, onProgress?: (percent: numb
     const file = fs.createWriteStream(destPath)
 
     const request = https.get(url, (response) => {
-      // Handle redirects
-      if (response.statusCode === 301 || response.statusCode === 302) {
+      // Handle redirects (301, 302, 307, 308)
+      if (response.statusCode && [301, 302, 307, 308].includes(response.statusCode)) {
         file.close()
-        fs.unlinkSync(destPath)
-        downloadFile(response.headers.location!, destPath, onProgress)
+        if (fs.existsSync(destPath)) fs.unlinkSync(destPath)
+        const location = response.headers.location
+        if (!location) {
+          reject(new Error(`Redirect with no location header`))
+          return
+        }
+        const redirectUrl = location.startsWith('http') ? location : new URL(location, url).toString()
+        downloadFile(redirectUrl, destPath, onProgress)
           .then(resolve)
           .catch(reject)
         return
@@ -222,7 +228,14 @@ function fetchJson<T>(url: string): Promise<T> {
     const request = https.get(url, (response) => {
       // Handle redirects (301, 302, 307, 308)
       if (response.statusCode && [301, 302, 307, 308].includes(response.statusCode)) {
-        fetchJson<T>(response.headers.location!)
+        const location = response.headers.location
+        if (!location) {
+          reject(new Error(`Redirect with no location header`))
+          return
+        }
+        // Handle relative URLs
+        const redirectUrl = location.startsWith('http') ? location : new URL(location, url).toString()
+        fetchJson<T>(redirectUrl)
           .then(resolve)
           .catch(reject)
         return

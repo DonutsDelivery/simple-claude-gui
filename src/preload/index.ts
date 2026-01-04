@@ -100,6 +100,8 @@ export interface ElectronAPI {
   xttsSpeak: (text: string, voiceId: string, language?: string) => Promise<{ success: boolean; audioData?: string; error?: string }>
   xttsSelectAudio: () => Promise<{ success: boolean; path?: string; error?: string }>
   xttsGetLanguages: () => Promise<Array<{ code: string; name: string }>>
+  xttsGetSampleVoices: () => Promise<Array<{ id: string; name: string; language: string; file: string; installed: boolean }>>
+  xttsDownloadSampleVoice: (sampleId: string) => Promise<{ success: boolean; voiceId?: string; error?: string }>
 
   // PTY
   spawnPty: (cwd: string, sessionId?: string, model?: string) => Promise<string>
@@ -224,6 +226,8 @@ const api: ElectronAPI = {
   xttsSpeak: (text, voiceId, language) => ipcRenderer.invoke('xtts:speak', { text, voiceId, language }),
   xttsSelectAudio: () => ipcRenderer.invoke('xtts:selectAudio'),
   xttsGetLanguages: () => ipcRenderer.invoke('xtts:getLanguages'),
+  xttsGetSampleVoices: () => ipcRenderer.invoke('xtts:getSampleVoices'),
+  xttsDownloadSampleVoice: (sampleId) => ipcRenderer.invoke('xtts:downloadSampleVoice', sampleId),
 
   // PTY management
   spawnPty: (cwd, sessionId, model) => ipcRenderer.invoke('pty:spawn', { cwd, sessionId, model }),
