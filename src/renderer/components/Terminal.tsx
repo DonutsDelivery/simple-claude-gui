@@ -191,9 +191,9 @@ export function Terminal({ ptyId, isActive, theme, onFocus, projectPath }: Termi
       noTasksAction = 'commit all changes to git with a summary message and push to remote. Then run "bd list --status=closed" to see all completed tasks from this session. For each completed task, provide: 1) A brief summary of what was implemented, 2) How to test it (specific steps), 3) What to look for to verify it works. Include any potential bugs, edge cases, or issues discovered during implementation. End with a checklist the user can follow to evaluate all the work.'
     }
 
-    let prompt = `Run bd ready to check for tasks. If no tasks are available, ${noTasksAction} Otherwise, pick ONE task to work on, complete it fully, close it with bd close <id>`
+    let prompt = `Run bd ready to check for tasks. If no tasks are available, ${noTasksAction} Otherwise, analyze ALL available tasks and determine which one should be worked on first - consider: 1) Is this task a prerequisite for other tasks? 2) Does it provide foundation/infrastructure needed by others? 3) Is it simpler and unblocks more complex work? Pick the ONE task that makes the most sense to do first, complete it fully, close it with bd close <id>`
     if (autoWorkAskQuestionsRef.current) {
-      prompt = `Run bd ready to check for tasks. If no tasks are available, ${noTasksAction} Otherwise, pick ONE task to work on. Before starting, ask any clarifying questions you have about the requirements. Work on the task, asking questions as needed. When complete, close it with bd close <id>`
+      prompt = `Run bd ready to check for tasks. If no tasks are available, ${noTasksAction} Otherwise, analyze ALL available tasks and determine which one should be worked on first - consider dependencies and logical order. Before starting the chosen task, ask any clarifying questions you have about the requirements. Work on the task, asking questions as needed. When complete, close it with bd close <id>`
     }
     // Git commit after each task (in addition to final commit)
     if (autoWorkGitCommitRef.current) {
