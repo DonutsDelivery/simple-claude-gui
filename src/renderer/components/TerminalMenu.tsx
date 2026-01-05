@@ -33,12 +33,18 @@ const menuCategories: MenuCategory[] = [
     ],
   },
   {
-    id: 'actions',
-    label: 'Actions',
+    id: 'automation',
+    label: 'Automation',
     items: [
-      { id: 'summarize', label: 'Summarize Context' },
       { id: 'autowork', label: 'Auto Work Loop' },
       { id: 'stopwork', label: 'Stop After Task' },
+    ],
+  },
+  {
+    id: 'session',
+    label: 'Session',
+    items: [
+      { id: 'summarize', label: 'Summarize Context' },
       { id: 'cancel', label: 'Cancel Request' },
     ],
   },
