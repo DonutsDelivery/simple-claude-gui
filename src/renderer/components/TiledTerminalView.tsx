@@ -41,14 +41,14 @@ function tilesOverlap(a: TileLayout, b: TileLayout): boolean {
 }
 
 // Validate and fix overlapping or out-of-bounds tiles by resetting to default layout if needed
-function validateLayout(layout: TileLayout[], tabs: OpenTab[]): TileLayout[] {
+function validateLayout(layout: TileLayout[], tabs: OpenTab[], containerWidth = 1920, containerHeight = 1080): TileLayout[] {
   // Check for any tiles outside the viewport (0-100%)
   for (const tile of layout) {
     if (tile.x < 0 || tile.y < 0 ||
         tile.x + tile.width > 100.5 || tile.y + tile.height > 100.5 ||
         tile.width < 5 || tile.height < 5) {
       console.warn('Detected out-of-bounds tile, resetting to default layout', tile)
-      return generateDefaultLayout(tabs)
+      return generateDefaultLayout(tabs, containerWidth, containerHeight)
     }
   }
 
@@ -58,7 +58,7 @@ function validateLayout(layout: TileLayout[], tabs: OpenTab[]): TileLayout[] {
       if (tilesOverlap(layout[i], layout[j])) {
         // Found overlap - return fresh default layout
         console.warn('Detected overlapping tiles, resetting to default layout')
-        return generateDefaultLayout(tabs)
+        return generateDefaultLayout(tabs, containerWidth, containerHeight)
       }
     }
   }
@@ -68,75 +68,86 @@ function validateLayout(layout: TileLayout[], tabs: OpenTab[]): TileLayout[] {
 // Minimum tile size in percentage
 const MIN_SIZE = 10
 
-function generateDefaultLayout(tabs: OpenTab[]): TileLayout[] {
+// Find optimal (rows, cols) for tiles closest to square given container aspect ratio
+function findOptimalGrid(count: number, containerWidth: number, containerHeight: number): { rows: number; cols: number } {
+  if (count <= 0) return { rows: 0, cols: 0 }
+  if (count === 1) return { rows: 1, cols: 1 }
+
+  let bestRows = 1
+  let bestCols = count
+  let bestDeviation = Infinity
+
+  // Try all possible row counts
+  for (let rows = 1; rows <= count; rows++) {
+    const cols = Math.ceil(count / rows)
+
+    // Calculate tile dimensions
+    const tileWidth = containerWidth / cols
+    const tileHeight = containerHeight / rows
+
+    // Tile aspect ratio - we want it close to 1 (square)
+    const tileAspect = tileWidth / tileHeight
+
+    // Use log to make 2:1 and 1:2 have same deviation from 1:1
+    const deviation = Math.abs(Math.log(tileAspect))
+
+    if (deviation < bestDeviation) {
+      bestDeviation = deviation
+      bestRows = rows
+      bestCols = cols
+    }
+  }
+
+  return { rows: bestRows, cols: bestCols }
+}
+
+function generateDefaultLayout(tabs: OpenTab[], containerWidth = 1920, containerHeight = 1080): TileLayout[] {
   const count = tabs.length
   if (count === 0) return []
   if (count === 1) {
     return [{ id: tabs[0].id, x: 0, y: 0, width: 100, height: 100 }]
   }
-  if (count === 2) {
-    // 1x2: side by side
-    return [
-      { id: tabs[0].id, x: 0, y: 0, width: 50, height: 100 },
-      { id: tabs[1].id, x: 50, y: 0, width: 50, height: 100 }
-    ]
-  }
-  if (count === 3) {
-    // 2 stacked + 1 full height
-    return [
-      { id: tabs[0].id, x: 0, y: 0, width: 50, height: 50 },
-      { id: tabs[1].id, x: 0, y: 50, width: 50, height: 50 },
-      { id: tabs[2].id, x: 50, y: 0, width: 50, height: 100 }
-    ]
-  }
 
-  // 4+: 2 rows, variable columns
-  // Even: perfect grid
-  // Odd: top row has more tiles, bottom row tiles share space equally
-  const isOdd = count % 2 === 1
-  const topRowCount = Math.ceil(count / 2)
-  const bottomRowCount = Math.floor(count / 2)
-  const topColWidth = 100 / topRowCount
-  const bottomColWidth = 100 / bottomRowCount
-  const rowHeight = 50
+  // Find optimal grid based on container aspect ratio
+  const { rows, cols } = findOptimalGrid(count, containerWidth, containerHeight)
 
   const layout: TileLayout[] = []
+  const colWidth = 100 / cols
+  const rowHeight = 100 / rows
 
-  if (isOdd) {
-    // Top row: more tiles
-    for (let i = 0; i < topRowCount; i++) {
+  // Calculate how many tiles are in each row
+  // Last row may have fewer tiles if count doesn't divide evenly
+  const fullRows = Math.floor(count / cols)
+  const lastRowCount = count % cols
+
+  let tabIndex = 0
+
+  // Fill full rows
+  for (let row = 0; row < fullRows; row++) {
+    for (let col = 0; col < cols; col++) {
       layout.push({
-        id: tabs[i].id,
-        x: i * topColWidth,
-        y: 0,
-        width: topColWidth,
-        height: rowHeight
-      })
-    }
-    // Bottom row: fewer tiles sharing space equally
-    for (let i = 0; i < bottomRowCount; i++) {
-      layout.push({
-        id: tabs[topRowCount + i].id,
-        x: i * bottomColWidth,
-        y: rowHeight,
-        width: bottomColWidth,
-        height: rowHeight
-      })
-    }
-  } else {
-    // Even: perfect grid with 2 rows
-    const cols = topRowCount
-    const colWidth = topColWidth
-    for (let i = 0; i < count; i++) {
-      const col = i % cols
-      const row = Math.floor(i / cols)
-      layout.push({
-        id: tabs[i].id,
+        id: tabs[tabIndex].id,
         x: col * colWidth,
         y: row * rowHeight,
         width: colWidth,
         height: rowHeight
       })
+      tabIndex++
+    }
+  }
+
+  // Fill last partial row (if any) - tiles span wider to fill the row
+  if (lastRowCount > 0) {
+    const lastRowColWidth = 100 / lastRowCount
+    for (let col = 0; col < lastRowCount; col++) {
+      layout.push({
+        id: tabs[tabIndex].id,
+        x: col * lastRowColWidth,
+        y: fullRows * rowHeight,
+        width: lastRowColWidth,
+        height: rowHeight
+      })
+      tabIndex++
     }
   }
 
@@ -153,6 +164,33 @@ export function TiledTerminalView({
   onLayoutChange
 }: TiledTerminalViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+
+  // Track container dimensions for adaptive tile layout (use ref to avoid unnecessary re-renders)
+  const containerSizeRef = useRef({ width: 1920, height: 1080 })
+
+  // ResizeObserver to track container dimensions
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect
+        if (width > 0 && height > 0) {
+          containerSizeRef.current = { width, height }
+        }
+      }
+    })
+
+    resizeObserver.observe(container)
+    // Initial measurement
+    const rect = container.getBoundingClientRect()
+    if (rect.width > 0 && rect.height > 0) {
+      containerSizeRef.current = { width: rect.width, height: rect.height }
+    }
+
+    return () => resizeObserver.disconnect()
+  }, [])
 
   const [draggedTile, setDraggedTile] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<string | null>(null)
@@ -189,8 +227,10 @@ export function TiledTerminalView({
 
   // Generate default layout if none provided, or sync with tabs
   const effectiveLayout = React.useMemo(() => {
+    const { width, height } = containerSizeRef.current
+
     if (layout.length === 0) {
-      return generateDefaultLayout(tabs)
+      return generateDefaultLayout(tabs, width, height)
     }
 
     // Check if tab count changed (tabs added or removed)
@@ -200,13 +240,13 @@ export function TiledTerminalView({
       !tabs.every(t => layoutIds.has(t.id)) ||
       !layout.every(l => tabIds.has(l.id))
 
-    // If tabs changed, regenerate the default grid layout
+    // If tabs changed, regenerate the default grid layout with current dimensions
     if (tabsChanged) {
-      return generateDefaultLayout(tabs)
+      return generateDefaultLayout(tabs, width, height)
     }
 
-    // Tabs haven't changed, keep existing layout (user may have resized)
-    return validateLayout(layout, tabs)
+    // Tabs haven't changed, keep existing layout (user may have resized tiles)
+    return validateLayout(layout, tabs, width, height)
   }, [layout, tabs])
 
   // Keep ref in sync with effectiveLayout
