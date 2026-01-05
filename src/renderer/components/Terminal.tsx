@@ -159,6 +159,10 @@ export function Terminal({ ptyId, isActive, theme, onFocus }: TerminalProps) {
   const capturingSummaryRef = useRef(false)
   const [pendingSummary, setPendingSummary] = useState<string | null>(null)
 
+  // Auto Work Loop feature
+  const autoWorkModeRef = useRef(false)
+  const [pendingAutoWorkContinue, setPendingAutoWorkContinue] = useState(false)
+
   // Keep refs in sync
   useEffect(() => {
     voiceOutputEnabledRef.current = voiceOutputEnabled
@@ -192,6 +196,28 @@ export function Terminal({ ptyId, isActive, theme, onFocus }: TerminalProps) {
       setPendingSummary(null)
     }
   }, [pendingSummary, ptyId])
+
+  // Handle auto work continuation - after /clear, send the continuation prompt
+  useEffect(() => {
+    if (pendingAutoWorkContinue) {
+      console.log('[AutoWork] Continuation triggered, running /clear')
+      // Run /clear first
+      window.electronAPI.writePty(ptyId, '/clear')
+      setTimeout(() => {
+        window.electronAPI.writePty(ptyId, '\r')
+        // After /clear completes, send the continuation prompt
+        setTimeout(() => {
+          console.log('[AutoWork] Sending continuation prompt')
+          const continuePrompt = 'Run bd ready to check for tasks. If no tasks are available, say "All beads tasks complete!" and stop. Otherwise, pick ONE task to work on, complete it fully, close it with bd close <id>, then output the marker: three equals signs, AUTOWORK_CONTINUE, three equals signs.'
+          window.electronAPI.writePty(ptyId, continuePrompt)
+          setTimeout(() => {
+            window.electronAPI.writePty(ptyId, '\r')
+          }, 100)
+        }, 1500)
+      }, 100)
+      setPendingAutoWorkContinue(false)
+    }
+  }, [pendingAutoWorkContinue, ptyId])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -509,6 +535,16 @@ export function Terminal({ ptyId, isActive, theme, onFocus }: TerminalProps) {
         }
       }
 
+      // Auto Work Loop - detect continuation marker
+      if (autoWorkModeRef.current && cleanChunk.includes('===AUTOWORK_CONTINUE===')) {
+        console.log('[AutoWork] Continuation marker detected!')
+        // Trigger the continuation (will run /clear then send prompt)
+        setPendingAutoWorkContinue(true)
+      }
+
+      // Strip autowork marker from display
+      displayData = displayData.replace(/===AUTOWORK_CONTINUE===/g, '')
+
       terminal.write(displayData)
 
       // Always scroll to bottom unless user has scrolled up
@@ -754,8 +790,21 @@ export function Terminal({ ptyId, isActive, theme, onFocus }: TerminalProps) {
           window.electronAPI.writePty(ptyId, '\r')
         }, 100)
         break
+      case 'autowork':
+        // Enable auto work mode and send initial prompt
+        autoWorkModeRef.current = true
+        console.log('[AutoWork] Mode enabled for ptyId:', ptyId)
+        // Initial prompt - describes marker without using it literally
+        const autoworkPrompt = 'Run bd ready to check for tasks. If no tasks are available, say "All beads tasks complete!" and stop. Otherwise, pick ONE task to work on, complete it fully, close it with bd close <id>, then output the marker: three equals signs, AUTOWORK_CONTINUE, three equals signs.'
+        window.electronAPI.writePty(ptyId, autoworkPrompt)
+        setTimeout(() => {
+          window.electronAPI.writePty(ptyId, '\r')
+        }, 100)
+        break
       case 'cancel':
-        // Send Escape to cancel current operation
+        // Send Escape to cancel current operation and disable auto work mode
+        autoWorkModeRef.current = false
+        console.log('[AutoWork] Mode disabled by cancel')
         window.electronAPI.writePty(ptyId, '\x1b')
         break
     }

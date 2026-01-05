@@ -37,6 +37,7 @@ const menuCategories: MenuCategory[] = [
     label: 'Actions',
     items: [
       { id: 'summarize', label: 'Summarize Context' },
+      { id: 'autowork', label: 'Auto Work Loop' },
       { id: 'cancel', label: 'Cancel Request' },
     ],
   },
