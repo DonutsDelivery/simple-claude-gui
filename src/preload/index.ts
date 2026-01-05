@@ -149,6 +149,10 @@ export interface ElectronAPI {
 
   // Custom commands
   commandsSave: (name: string, content: string, projectPath: string | null) => Promise<{ success: boolean; path?: string; error?: string }>
+
+  // Auto Work mode marker (for hooks)
+  autoworkSetActive: (projectPath: string) => Promise<{ success: boolean }>
+  autoworkClearActive: (projectPath: string) => Promise<{ success: boolean }>
 }
 
 const api: ElectronAPI = {
