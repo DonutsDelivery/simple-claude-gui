@@ -791,14 +791,21 @@ export function Terminal({ ptyId, isActive, theme, onFocus }: TerminalProps) {
         }, 100)
         break
       case 'autowork':
-        // Enable auto work mode and send initial prompt
+        // Enable auto work mode, clear session first, then send prompt
         autoWorkModeRef.current = true
         console.log('[AutoWork] Mode enabled for ptyId:', ptyId)
-        // Initial prompt - describes marker without using it literally
-        const autoworkPrompt = 'Run bd ready to check for tasks. If no tasks are available, say "All beads tasks complete!" and stop. Otherwise, pick ONE task to work on, complete it fully, close it with bd close <id>, then output the marker: three equals signs, AUTOWORK_CONTINUE, three equals signs.'
-        window.electronAPI.writePty(ptyId, autoworkPrompt)
+        // First run /clear to start fresh
+        window.electronAPI.writePty(ptyId, '/clear')
         setTimeout(() => {
           window.electronAPI.writePty(ptyId, '\r')
+          // After /clear completes, send the work prompt
+          setTimeout(() => {
+            const autoworkPrompt = 'Run bd ready to check for tasks. If no tasks are available, say "All beads tasks complete!" and stop. Otherwise, pick ONE task to work on, complete it fully, close it with bd close <id>, then output the marker: three equals signs, AUTOWORK_CONTINUE, three equals signs.'
+            window.electronAPI.writePty(ptyId, autoworkPrompt)
+            setTimeout(() => {
+              window.electronAPI.writePty(ptyId, '\r')
+            }, 100)
+          }, 1500)
         }, 100)
         break
       case 'stopwork':
