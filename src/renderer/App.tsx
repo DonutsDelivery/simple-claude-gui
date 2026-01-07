@@ -206,41 +206,45 @@ function App() {
                 if (!storedSessionExists) {
                   // Only use most recent if stored session no longer exists (e.g., after /clear)
                   const mostRecent = sessions[0]
-                  console.log('Stored session not found, using most recent:', mostRecent.sessionId)
                   sessionIdToRestore = mostRecent.sessionId
-                  const projectName = savedTab.projectPath.split(/[/\\]/).pop() || savedTab.projectPath
-                  titleToRestore = `${projectName} - ${mostRecent.slug}`
+                  titleToRestore = `${savedTab.projectPath.split(/[/\\]/).pop() || savedTab.projectPath} - ${mostRecent.slug}`
                 }
               }
 
               // Skip if this session is already open
               if (sessionIdToRestore && openSessionIds.has(sessionIdToRestore)) {
-                console.log('Skipping already open session:', sessionIdToRestore)
                 continue
               }
 
               const ptyId = await window.electronAPI.spawnPty(
                 savedTab.projectPath,
-                sessionIdToRestore
+                sessionIdToRestore,
+                undefined // model
               )
               // Map old tab ID to new ptyId for layout restoration
               if (savedTab.id) {
                 idMapping.set(savedTab.id, ptyId)
               }
+
+              // Get project and determine effective backend for restored tab
+              const projectForTab = projects.find(p => p.path === savedTab.projectPath)
+              const effectiveBackendForTab = projectForTab?.backend && projectForTab.backend !== 'default'
+                ? projectForTab.backend
+                : settings?.backend || 'claude'
+
               addTab({
                 id: ptyId,
                 projectPath: savedTab.projectPath,
                 sessionId: sessionIdToRestore,
                 title: titleToRestore,
                 ptyId,
-                backend: settings?.backend || 'claude'
+                backend: effectiveBackendForTab
               })
               // Track this session as now open
               if (sessionIdToRestore) {
                 openSessionIds.add(sessionIdToRestore)
               }
             } catch (e) {
-              console.error('Failed to restore tab:', savedTab.title, e)
             }
           }
         }
@@ -271,7 +275,7 @@ function App() {
     })
 
     return () => unsubscribe()
-  }, [])
+  }, [addTab, clearTabs, projects, setProjects, settings?.backend, updateTab, hadProjectsRef])
 
   // Save workspace when it changes
   useEffect(() => {
@@ -342,9 +346,14 @@ function App() {
   useEffect(() => {
     const unsubscribe = window.electronAPI.onApiOpenSession(async ({ projectPath, autoClose, model }) => {
       // Open a new session for this project (API-triggered)
-      const projectName = projectPath.split(/[/\\]/).pop() || projectPath
       const modelLabel = model && model !== 'default' ? ` [${model}]` : ''
-      const title = `${projectName} - API${modelLabel}${autoClose ? ' (auto-close)' : ''}`
+      const title = `${projectPath.split(/[/\\]/).pop() || projectPath} - API${modelLabel}${autoClose ? ' (auto-close)' : ''}`
+
+      // Get project and determine effective backend
+      const project = projects.find(p => p.path === projectPath)
+      const effectiveBackend = project?.backend && project.backend !== 'default'
+        ? project.backend
+        : settings?.backend || 'claude'
 
       try {
         // Always install TTS instructions so Claude uses <tts> tags
@@ -356,7 +365,7 @@ function App() {
           projectPath,
           title,
           ptyId,
-          backend: settings?.backend || 'claude'
+          backend: effectiveBackend
         })
       } catch (e: any) {
         console.error('Failed to spawn PTY for API request:', e)
@@ -364,7 +373,7 @@ function App() {
     })
 
     return unsubscribe
-  }, [addTab])
+  }, [addTab, projects, settings?.backend])
 
   // Listen for PTY recreation events
   useEffect(() => {
@@ -405,6 +414,12 @@ function App() {
       }
     }
 
+    // Get project and determine effective backend
+    const project = projects.find(p => p.path === projectPath)
+    const effectiveBackend = project?.backend && project.backend !== 'default'
+      ? project.backend
+      : settings?.backend || 'claude'
+
     // Split on both / and \ for cross-platform support
     const projectName = projectPath.split(/[/\\]/).pop() || projectPath
     const title = slug ? `${projectName} - ${slug}` : `${projectName} - New`
@@ -413,14 +428,15 @@ function App() {
       // Always install TTS instructions so Claude uses <tts> tags
       await window.electronAPI.ttsInstallInstructions?.(projectPath)
 
-      const ptyId = await window.electronAPI.spawnPty(projectPath, sessionId)
+      // ptyId = await window.electronAPI.spawnPty(projectPath, sessionId, model?, backend?)
+      const ptyId = await window.electronAPI.spawnPty(projectPath, sessionId, undefined)
       addTab({
         id: ptyId,
         projectPath,
         sessionId,
         title,
         ptyId,
-        backend: settings?.backend || 'claude'
+        backend: effectiveBackend
       })
     } catch (e: any) {
       console.error('Failed to spawn PTY:', e)
@@ -428,7 +444,7 @@ function App() {
       const errorMsg = e?.message || String(e)
       alert(`Failed to start Claude session:\n\n${errorMsg}\n\nPlease ensure Claude Code is installed and try restarting the application.`)
     }
-  }, [addTab, openTabs, setActiveTab])
+  }, [addTab, openTabs, projects, setActiveTab, settings?.backend, settings])
 
   const handleCloseTab = useCallback((tabId: string) => {
     window.electronAPI.killPty(tabId)

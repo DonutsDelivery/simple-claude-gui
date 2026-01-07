@@ -14,6 +14,7 @@ export interface Project {
   color?: string              // Project color for visual identification
   ttsVoice?: string           // Per-project TTS voice (overrides global)
   ttsEngine?: 'piper' | 'xtts'  // Per-project TTS engine
+  backend?: 'default' | 'claude' | 'gemini' // Per-project backend (overrides global)
 }
 
 export interface OpenTab {

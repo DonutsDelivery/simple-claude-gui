@@ -7,6 +7,12 @@ interface BeadsTask {
   priority?: number
   created?: string
   blockers?: string[]
+  description?: string
+  issue_type?: string
+  created_at?: string
+  updated_at?: string
+  dependency_count?: number
+  dependent_count?: number
 }
 
 interface BeadsPanelProps {
@@ -51,6 +57,16 @@ export function BeadsPanel({ projectPath, isExpanded, onToggle }: BeadsPanelProp
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState('')
   const editInputRef = useRef<HTMLInputElement>(null)
+
+  // Detail modal state
+  const [showDetailModal, setShowDetailModal] = useState(false)
+  const [detailTask, setDetailTask] = useState<BeadsTask | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [editingDetail, setEditingDetail] = useState(false)
+  const [editDetailTitle, setEditDetailTitle] = useState('')
+  const [editDetailDescription, setEditDetailDescription] = useState('')
+  const [editDetailPriority, setEditDetailPriority] = useState<number>(2)
+  const [editDetailStatus, setEditDetailStatus] = useState<string>('open')
 
   const loadTasks = useCallback(async (showLoading = true) => {
     if (!projectPath) return
@@ -328,6 +344,73 @@ export function BeadsPanel({ projectPath, isExpanded, onToggle }: BeadsPanelProp
     setEditingTitle('')
   }
 
+  const handleOpenDetail = async (task: BeadsTask) => {
+    if (!projectPath) return
+
+    setShowDetailModal(true)
+    setDetailLoading(true)
+    setEditingDetail(false)
+
+    try {
+      const result = await window.electronAPI.beadsShow(projectPath, task.id)
+      if (result.success && result.task) {
+        // beadsShow returns an array with one task
+        const fullTask = Array.isArray(result.task) ? result.task[0] : result.task
+        setDetailTask(fullTask)
+        // Pre-fill edit fields
+        setEditDetailTitle(fullTask.title || '')
+        setEditDetailDescription(fullTask.description || '')
+        setEditDetailPriority(fullTask.priority ?? 2)
+        setEditDetailStatus(fullTask.status || 'open')
+      } else {
+        setError(result.error || 'Failed to load task details')
+        setShowDetailModal(false)
+      }
+    } catch (e) {
+      setError(String(e))
+      setShowDetailModal(false)
+    } finally {
+      setDetailLoading(false)
+    }
+  }
+
+  const handleCloseDetail = () => {
+    setShowDetailModal(false)
+    setDetailTask(null)
+    setEditingDetail(false)
+  }
+
+  const handleSaveDetail = async () => {
+    if (!projectPath || !detailTask) return
+
+    try {
+      const result = await window.electronAPI.beadsUpdate(
+        projectPath,
+        detailTask.id,
+        editDetailStatus,
+        editDetailTitle.trim(),
+        editDetailDescription.trim(),
+        editDetailPriority
+      )
+      if (result.success) {
+        // Update local state
+        setDetailTask({
+          ...detailTask,
+          title: editDetailTitle.trim(),
+          description: editDetailDescription.trim(),
+          status: editDetailStatus,
+          priority: editDetailPriority
+        })
+        setEditingDetail(false)
+        loadTasks()
+      } else {
+        setError(result.error || 'Failed to update task')
+      }
+    } catch (e) {
+      setError(String(e))
+    }
+  }
+
   const handleClearCompleted = async () => {
     if (!projectPath) return
 
@@ -497,9 +580,9 @@ export function BeadsPanel({ projectPath, isExpanded, onToggle }: BeadsPanelProp
                           />
                         ) : (
                           <div
-                            className={`beads-task-title ${task.status === 'closed' ? 'completed' : ''}`}
-                            title="Double-click to edit"
-                            onDoubleClick={() => handleStartEdit(task)}
+                            className={`beads-task-title clickable ${task.status === 'closed' ? 'completed' : ''}`}
+                            title="Click to view details"
+                            onClick={() => handleOpenDetail(task)}
                           >
                             {task.title}
                           </div>
@@ -637,6 +720,132 @@ export function BeadsPanel({ projectPath, isExpanded, onToggle }: BeadsPanelProp
                       >
                         Create
                       </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {showDetailModal && (
+                <div className="beads-modal-overlay" onClick={handleCloseDetail}>
+                  <div className="beads-modal beads-detail-modal" onClick={(e) => e.stopPropagation()}>
+                    <div className="beads-modal-header">
+                      <h3>{detailTask?.id || 'Task Details'}</h3>
+                      <button className="beads-modal-close" onClick={handleCloseDetail}>×</button>
+                    </div>
+                    <div className="beads-modal-body">
+                      {detailLoading ? (
+                        <div className="beads-detail-loading">Loading...</div>
+                      ) : detailTask ? (
+                        editingDetail ? (
+                          <>
+                            <div className="beads-form-group">
+                              <label htmlFor="detail-title">Title</label>
+                              <input
+                                id="detail-title"
+                                type="text"
+                                value={editDetailTitle}
+                                onChange={(e) => setEditDetailTitle(e.target.value)}
+                                autoFocus
+                              />
+                            </div>
+                            <div className="beads-form-row">
+                              <div className="beads-form-group">
+                                <label htmlFor="detail-status">Status</label>
+                                <select
+                                  id="detail-status"
+                                  value={editDetailStatus}
+                                  onChange={(e) => setEditDetailStatus(e.target.value)}
+                                >
+                                  <option value="open">Open</option>
+                                  <option value="in_progress">In Progress</option>
+                                  <option value="closed">Closed</option>
+                                </select>
+                              </div>
+                              <div className="beads-form-group">
+                                <label htmlFor="detail-priority">Priority</label>
+                                <select
+                                  id="detail-priority"
+                                  value={editDetailPriority}
+                                  onChange={(e) => setEditDetailPriority(parseInt(e.target.value))}
+                                >
+                                  <option value="0">P0 - Critical</option>
+                                  <option value="1">P1 - High</option>
+                                  <option value="2">P2 - Medium</option>
+                                  <option value="3">P3 - Low</option>
+                                  <option value="4">P4 - Lowest</option>
+                                </select>
+                              </div>
+                            </div>
+                            <div className="beads-form-group">
+                              <label htmlFor="detail-description">Description</label>
+                              <textarea
+                                id="detail-description"
+                                value={editDetailDescription}
+                                onChange={(e) => setEditDetailDescription(e.target.value)}
+                                rows={5}
+                              />
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="beads-detail-title">{detailTask.title}</div>
+                            <div className="beads-detail-meta">
+                              <span className={`beads-detail-status status-${detailTask.status}`}>
+                                {detailTask.status === 'in_progress' ? 'In Progress' : detailTask.status === 'closed' ? 'Closed' : 'Open'}
+                              </span>
+                              <span className={`beads-detail-priority ${getPriorityClass(detailTask.priority)}`}>
+                                P{detailTask.priority ?? 2}
+                              </span>
+                              <span className="beads-detail-type">{detailTask.issue_type || 'task'}</span>
+                            </div>
+                            {detailTask.description && (
+                              <div className="beads-detail-description">
+                                <label>Description</label>
+                                <p>{detailTask.description}</p>
+                              </div>
+                            )}
+                            <div className="beads-detail-timestamps">
+                              {detailTask.created_at && (
+                                <span>Created: {new Date(detailTask.created_at).toLocaleString()}</span>
+                              )}
+                              {detailTask.updated_at && (
+                                <span>Updated: {new Date(detailTask.updated_at).toLocaleString()}</span>
+                              )}
+                            </div>
+                            {(detailTask.dependency_count !== undefined || detailTask.dependent_count !== undefined) && (
+                              <div className="beads-detail-deps">
+                                {detailTask.dependency_count !== undefined && detailTask.dependency_count > 0 && (
+                                  <span>Blocked by: {detailTask.dependency_count} task(s)</span>
+                                )}
+                                {detailTask.dependent_count !== undefined && detailTask.dependent_count > 0 && (
+                                  <span>Blocking: {detailTask.dependent_count} task(s)</span>
+                                )}
+                              </div>
+                            )}
+                          </>
+                        )
+                      ) : (
+                        <div className="beads-detail-error">Task not found</div>
+                      )}
+                    </div>
+                    <div className="beads-modal-footer">
+                      {editingDetail ? (
+                        <>
+                          <button className="beads-btn-cancel" onClick={() => setEditingDetail(false)}>Cancel</button>
+                          <button
+                            className="beads-btn-create"
+                            onClick={handleSaveDetail}
+                            disabled={!editDetailTitle.trim()}
+                          >
+                            Save
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button className="beads-btn-cancel" onClick={handleCloseDetail}>Close</button>
+                          <button className="beads-btn-create" onClick={() => setEditingDetail(true)}>Edit</button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>

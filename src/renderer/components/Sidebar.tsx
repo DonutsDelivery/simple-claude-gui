@@ -116,6 +116,7 @@ export function Sidebar({ projects, openTabs, activeTabId, lastFocusedTabId, onA
     apiError?: string
     ttsVoice: string  // empty string means use global
     ttsEngine: 'piper' | 'xtts' | ''  // empty string means use global
+    backend: 'default' | 'claude' | 'gemini'
   } | null>(null)
   const [installedVoices, setInstalledVoices] = useState<Array<{ key: string; displayName: string; source: string }>>([])
   const [globalVoiceSettings, setGlobalVoiceSettings] = useState<{ voice: string; engine: string }>({ voice: '', engine: '' })
@@ -270,7 +271,8 @@ export function Sidebar({ projects, openTabs, activeTabId, lastFocusedTabId, onA
       tools: project.autoAcceptTools || [],
       permissionMode: project.permissionMode || 'default',
       ttsVoice: project.ttsVoice || '',
-      ttsEngine: project.ttsEngine || ''
+      ttsEngine: project.ttsEngine || '',
+      backend: project.backend || 'default'
     })
     setContextMenu(null)
   }
@@ -316,7 +318,8 @@ export function Sidebar({ projects, openTabs, activeTabId, lastFocusedTabId, onA
       autoAcceptTools: projectSettingsModal.tools.length > 0 ? projectSettingsModal.tools : undefined,
       permissionMode: projectSettingsModal.permissionMode !== 'default' ? projectSettingsModal.permissionMode : undefined,
       ttsVoice: projectSettingsModal.ttsVoice || undefined,
-      ttsEngine: projectSettingsModal.ttsEngine || undefined
+      ttsEngine: projectSettingsModal.ttsEngine || undefined,
+      backend: projectSettingsModal.backend !== 'default' ? projectSettingsModal.backend : undefined
     })
 
     setProjectSettingsModal(null)
@@ -892,6 +895,50 @@ export function Sidebar({ projects, openTabs, activeTabId, lastFocusedTabId, onA
                   <button className="btn-secondary" onClick={handleClearAll}>
                     Clear All
                   </button>
+                </div>
+              </div>
+
+              {/* Backend Settings Section */}
+              <div className="settings-section">
+                <h3>Backend Settings</h3>
+                <p className="form-hint">Override the global default backend for this project.</p>
+
+                <div className="form-group">
+                  <div className="permission-mode-options compact">
+                    <label className={`permission-mode-option ${projectSettingsModal.backend === 'default' ? 'selected' : ''}`}>
+                      <input
+                        type="radio"
+                        name="projectBackend"
+                        value="default"
+                        checked={projectSettingsModal.backend === 'default'}
+                        onChange={(e) => setProjectSettingsModal({ ...projectSettingsModal, backend: e.target.value as 'default' | 'claude' | 'gemini' })}
+                      />
+                      <span className="mode-label">Use global default</span>
+                      <span className="mode-desc">Uses the backend selected in the main settings.</span>
+                    </label>
+                    <label className={`permission-mode-option ${projectSettingsModal.backend === 'claude' ? 'selected' : ''}`}>
+                      <input
+                        type="radio"
+                        name="projectBackend"
+                        value="claude"
+                        checked={projectSettingsModal.backend === 'claude'}
+                        onChange={(e) => setProjectSettingsModal({ ...projectSettingsModal, backend: e.target.value as 'default' | 'claude' | 'gemini' })}
+                      />
+                      <span className="mode-label">Claude</span>
+                      <span className="mode-desc">Forces this project to use Claude.</span>
+                    </label>
+                    <label className={`permission-mode-option ${projectSettingsModal.backend === 'gemini' ? 'selected' : ''}`}>
+                      <input
+                        type="radio"
+                        name="projectBackend"
+                        value="gemini"
+                        checked={projectSettingsModal.backend === 'gemini'}
+                        onChange={(e) => setProjectSettingsModal({ ...projectSettingsModal, backend: e.target.value as 'default' | 'claude' | 'gemini' })}
+                      />
+                      <span className="mode-label">Gemini</span>
+                      <span className="mode-desc">Forces this project to use Gemini.</span>
+                    </label>
+                  </div>
                 </div>
               </div>
 
