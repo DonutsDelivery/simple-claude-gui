@@ -50,6 +50,7 @@ export function TerminalMenu({ ptyId, onCommand, currentBackend, onBackendChange
   const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const categoryRefs = useRef<Map<string, HTMLButtonElement>>(new Map())
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Auto work options state
   const [autoWorkOptions, setAutoWorkOptions] = useState<AutoWorkOptions>(() => {
