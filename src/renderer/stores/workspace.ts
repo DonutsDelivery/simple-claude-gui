@@ -12,7 +12,7 @@ export interface Project {
   color?: string
   ttsVoice?: string           // Per-project TTS voice (overrides global)
   ttsEngine?: 'piper' | 'xtts'  // Per-project TTS engine
-  backend?: 'default' | 'claude' | 'gemini' | 'codex'
+  backend?: 'default' | 'claude' | 'gemini' | 'codex' | 'opencode'
 }
 
 export interface OpenTab {
