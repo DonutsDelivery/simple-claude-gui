@@ -180,40 +180,40 @@ export function BeadsPanel({ projectPath, isExpanded, onToggle }: BeadsPanelProp
     return cleanup
   }, [])
 
-  // When project changes, load from cache immediately then refresh in background
+  // When project changes, immediately clear and refresh
   useEffect(() => {
     setError(null)
     if (projectPath) {
-      // Load from cache instantly if available
+      // Always clear first to avoid showing stale data from wrong project
+      setTasks([])
+      setBeadsInitialized(false)
+      setBeadsInstalled(false)
+
+      // Then load from cache for instant display (if available for THIS project)
       const cachedTasks = tasksCache.get(projectPath)
       const cachedStatus = beadsStatusCache.get(projectPath)
       if (cachedTasks && cachedStatus) {
         setTasks(cachedTasks)
         setBeadsInstalled(cachedStatus.installed)
         setBeadsInitialized(cachedStatus.initialized)
-      } else {
-        // No cache - clear and show loading
-        setTasks([])
-        setBeadsInitialized(false)
-        setBeadsInstalled(false)
       }
+
+      // Always fetch fresh data immediately on project change
+      loadTasks(false)
     } else {
       setTasks([])
       setBeadsInitialized(false)
       setBeadsInstalled(false)
     }
-  }, [projectPath])
+  }, [projectPath]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (projectPath && isExpanded) {
-      // Show loading only if no cached data
-      const hasCachedData = tasksCache.has(projectPath)
-      loadTasks(!hasCachedData)
+    if (projectPath) {
       // Auto-refresh every 10 seconds (silent, no loading state)
       const interval = setInterval(() => loadTasks(false), 10000)
       return () => clearInterval(interval)
     }
-  }, [projectPath, isExpanded, loadTasks])
+  }, [projectPath, loadTasks])
 
   const handleCreateTask = async () => {
     if (!projectPath || !newTaskTitle.trim()) return

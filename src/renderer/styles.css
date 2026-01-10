@@ -3714,6 +3714,10 @@ html, body, #root {
 }
 
 /* Detail modal */
+.beads-modal-overlay:has(.beads-detail-modal) {
+  background: rgba(0, 0, 0, 0.92);
+}
+
 .beads-detail-modal {
   max-width: 500px;
   min-width: 400px;
